@@ -21,7 +21,7 @@ prompt_text = """
 你是一位精通遥感影像分析与城市规划规划的专家。请对比提供的两张时序影像（图A为前期，图B为后期），按照以下逻辑进行深度分析：
 
 ### 第一步：客观变化描述 (Objective Description)
-1. 识别新增地物的类型（如：矩阵式住宅、单体建筑、工业厂房、硬化道路、绿化带）。
+1. 识别新增地物的类型和方位（如：矩阵式住宅、单体建筑、工业厂房、硬化道路、绿化带）。
 2. 观察变化的几何特征（如：布局是否整齐、是否沿交通线分布、建筑密度高低）。
 
 ### 第二步：开发模式识别 (Pattern Recognition)
@@ -39,7 +39,7 @@ prompt_text = """
 - 如果是**无序开发**：建议侧重于“规划红线执法”，如遥感常态化监测、违建拆除、生态修复补偿。
 
 ---
-请开始你的分析，保持专业、中立、客观。
+请开始你的分析，保持专业、中立、客观。输出内容不要带有其余无关信息
 """
 
 
@@ -77,7 +77,9 @@ with open(output_file, "w", encoding="utf-8") as f_out:
         # 编码图片
         base64_a = encode_image(path_a)
         base64_b = encode_image(path_b)
-
+        system_text="""
+        你现在是一名城市治理的专家。这是城市发展对比图。请先识别新增地物的分布特征,并据此给出城市治理建议
+        """.strip()
         try:
             # 调用 vLLM 的 OpenAI 兼容接口
             response = client.chat.completions.create(
@@ -98,7 +100,7 @@ with open(output_file, "w", encoding="utf-8") as f_out:
             )
 
             answer = response.choices[0].message.content
-            print(answer)
+            # print(answer)
 
             # 构造 LLaMA-Factory 要求的 ShareGPT 格式
             # 注意：这里需要放图片的相对路径或绝对路径，训练时框架会去读
@@ -106,7 +108,7 @@ with open(output_file, "w", encoding="utf-8") as f_out:
                 "messages": [
                     {
                         "role": "user",
-                        "content": f"<image>\n<image>\n{prompt_text}"
+                        "content": f"<image>\n<image>\n{system_text}"
                     },
                     {
                         "role": "assistant",
