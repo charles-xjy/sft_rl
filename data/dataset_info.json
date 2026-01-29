@@ -1,6 +1,21 @@
 {
   "1": {
-    "file_name": "output_prefix.jsonl",
+    "file_name": "01.20.10:27_LEVIR-CD+_sft.jsonl",
+    "formatting": "sharegpt",
+    "columns": {
+    "messages": "messages",
+      "images": "images"
+    },
+     "tags": {
+    "role_tag": "role",
+    "content_tag": "content",
+    "user_tag": "user",
+    "assistant_tag": "assistant",
+    "system_tag": "system"
+    }
+  },
+  "2": {
+    "file_name": "01.20.16:16_SECOND_sft.jsonl",
     "formatting": "sharegpt",
     "columns": {
     "messages": "messages",
