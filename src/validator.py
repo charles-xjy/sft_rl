@@ -5,13 +5,31 @@ import re
 from typing import List, Tuple
 
 
-DIRECT_RISK_WORDS = [
+# 真正越界单图 VQA 的词：出现即阻断（降级为 warning，不进 pass）。
+# 这些表达基本只可能来自图像外推断（坐标/测量/工程治理/行政处置）。
+HARD_RISK_WORDS = [
     "坐标",
     "经度",
     "纬度",
     "GPS",
     "GNSS",
     "InSAR",
+    "禁建区",
+    "缓冲区",
+    "避让",
+    "治理",
+    "修复",
+    "方案",
+    "传感器",
+    "赔偿",
+    "补偿",
+    "安置",
+]
+
+
+# 日常高频词：在遥感答案里常作正常表达（"需要进一步确认""屋顶颜色导致反光"
+# "政府大楼"等），仅作软提示，不阻断 pass，避免误杀。
+SOFT_RISK_WORDS = [
     "成因",
     "原因",
     "导致",
@@ -20,19 +38,9 @@ DIRECT_RISK_WORDS = [
     "应该",
     "需要",
     "必须",
-    "方案",
-    "治理",
-    "修复",
-    "避让",
-    "禁建区",
-    "缓冲区",
     "监测",
-    "传感器",
     "政府",
     "部门",
-    "赔偿",
-    "补偿",
-    "安置",
 ]
 
 
@@ -83,9 +91,12 @@ def _extract_sections(answer: str):
 
 def _find_direct_risks(text: str) -> List[str]:
     warnings = []
-    for word in DIRECT_RISK_WORDS:
+    for word in HARD_RISK_WORDS:
         if word in text:
             warnings.append(f"包含高风险词汇: {word}")
+    for word in SOFT_RISK_WORDS:
+        if word in text:
+            warnings.append(f"包含需复核词汇: {word}")
     for pattern in CONTEXTUAL_RISK_PATTERNS:
         if re.search(pattern, text):
             warnings.append("包含疑似精确数值/单位表达")
