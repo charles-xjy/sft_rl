@@ -10,6 +10,7 @@ from pathlib import Path
 
 import requests
 from openai import OpenAI
+from tqdm import tqdm
 
 
 def encode_image(image_path: Path) -> str:
@@ -94,7 +95,7 @@ class VLMClient:
                 self.model = "Qwen/Qwen3-VL-32B-Instruct"
                 print(f"[warning] fallback model name: {self.model}")
 
-        self.client = OpenAI(api_key="EMPTY", base_url=self.base_url)
+        self.client = OpenAI(api_key="EMPTY", base_url=self.base_url, timeout=120.0)
 
     def call_raw(self, prompt: str, image_path: Path, max_tokens: int = 1024, temperature: float = 0.3):
         """Call the VLM and return the raw OpenAI-compatible response."""
@@ -112,6 +113,7 @@ class VLMClient:
             }],
             max_tokens=max_tokens,
             temperature=temperature,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
 
     def call(
@@ -150,8 +152,12 @@ class VLMClient:
                 reasoning = extract_text_content(getattr(message, "reasoning_content", None))
                 extra = f", reasoning_preview={reasoning[:160]!r}" if reasoning else ""
                 raise ValueError(f"empty model response: finish_reason={finish_reason}{extra}")
-            except Exception:
+            except Exception as e:
                 if attempt == self.retries - 1:
                     raise
+                tqdm.write(
+                    f"[retry] attempt={attempt + 1}/{self.retries} "
+                    f"image={image_path.name} reason={type(e).__name__}: {e}"
+                )
                 continue
         return ""
