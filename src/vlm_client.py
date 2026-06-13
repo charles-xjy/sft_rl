@@ -5,12 +5,47 @@ import base64
 import json
 import mimetypes
 import os
+import random
 import re
+import time
 from pathlib import Path
 
+import openai
 import requests
 from openai import OpenAI
 from tqdm import tqdm
+
+
+# Errors that indicate the vLLM server is overloaded / transiently unavailable.
+# These warrant exponential backoff instead of immediate retry, otherwise we
+# just pile more requests onto an already-saturated queue.
+_OVERLOAD_EXC = (
+    openai.RateLimitError,        # HTTP 429
+    openai.APITimeoutError,       # client-side timeout (server too slow)
+    openai.APIConnectionError,    # connection reset / refused
+    openai.InternalServerError,   # HTTP 5xx
+)
+_OVERLOAD_STATUS = {429, 502, 503, 504}
+
+
+def _is_overload_error(exc: Exception) -> bool:
+    if isinstance(exc, _OVERLOAD_EXC):
+        return True
+    status = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
+    return status in _OVERLOAD_STATUS
+
+
+def _retry_after_seconds(exc: Exception) -> float | None:
+    """Honor a server-provided Retry-After header when present (seconds or HTTP-date ignored)."""
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None) or {}
+    raw = headers.get("retry-after") or headers.get("Retry-After")
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return None
 
 
 def encode_image(image_path: Path) -> str:
@@ -78,9 +113,18 @@ def detect_model(base_url: str) -> str:
 class VLMClient:
     """VLM client wrapper with retries and response validation."""
 
-    def __init__(self, base_url: str = None, model: str = None, retries: int = 3):
+    def __init__(
+        self,
+        base_url: str = None,
+        model: str = None,
+        retries: int = 3,
+        backoff_base: float = 2.0,
+        backoff_cap: float = 60.0,
+    ):
         self.base_url = base_url or "http://10.129.107.145:8001/v1"
         self.retries = retries
+        self.backoff_base = backoff_base   # initial backoff seconds for overload errors
+        self.backoff_cap = backoff_cap     # max single sleep between retries
 
         if model:
             self.model = model
@@ -155,9 +199,25 @@ class VLMClient:
             except Exception as e:
                 if attempt == self.retries - 1:
                     raise
-                tqdm.write(
-                    f"[retry] attempt={attempt + 1}/{self.retries} "
-                    f"image={image_path.name} reason={type(e).__name__}: {e}"
-                )
+
+                if _is_overload_error(e):
+                    # Exponential backoff with full jitter; honor Retry-After if the server sent one.
+                    server_hint = _retry_after_seconds(e)
+                    if server_hint is not None:
+                        sleep_s = min(server_hint, self.backoff_cap)
+                    else:
+                        ceiling = min(self.backoff_cap, self.backoff_base * (2 ** attempt))
+                        sleep_s = random.uniform(0, ceiling)
+                    tqdm.write(
+                        f"[retry-overload] attempt={attempt + 1}/{self.retries} "
+                        f"image={image_path.name} reason={type(e).__name__}: {e} "
+                        f"sleep={sleep_s:.2f}s"
+                    )
+                    time.sleep(sleep_s)
+                else:
+                    tqdm.write(
+                        f"[retry] attempt={attempt + 1}/{self.retries} "
+                        f"image={image_path.name} reason={type(e).__name__}: {e}"
+                    )
                 continue
         return ""

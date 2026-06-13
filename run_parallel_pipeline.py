@@ -39,9 +39,6 @@ VALID_QUESTION_TYPES = {
     "location",
     "spatial_relation",
     "counting",
-    "scene",
-    "comparison",
-    "reasoning",
 }
 
 
@@ -155,6 +152,8 @@ def phase2_task(task: dict, get_client, num_questions: int, min_questions: int) 
         temperature=0.4,
     )
     questions = parse_questions_response(response)
+    if len(questions) > num_questions:
+        questions = questions[:num_questions]
     return {
         "kind": "phase2",
         "dataset": task["dataset"],
@@ -244,11 +243,11 @@ def main():
     parser.add_argument(
         "--samples-per-dataset",
         type=str,
-        default="10",
+        default="LEVIR-CD+=500,SECOND=500",
         help=(
             "每个数据集采样数量。两种语法："
             "(1) 单一整数 '10' — 每个数据集都抽 10 张；"
-            "(2) 按数据集指定 'LEVIR-CD+=200,SECOND=200,EBD=140' — 仅抽指定的"
+            "(2) 按数据集指定 'LEVIR-CD+=500,SECOND=500' — 仅抽指定的"
         ),
     )
     parser.add_argument(
@@ -257,8 +256,8 @@ def main():
         default=None,
         help="EBD 按 7 种灾害子目录各抽 N 张；启用后会覆盖 --samples-per-dataset 里 EBD 的值",
     )
-    parser.add_argument("--num-questions", type=int, default=8, help="每张图目标生成问题数量")
-    parser.add_argument("--min-questions", type=int, default=5, help="每张图最少生成问题数量")
+    parser.add_argument("--num-questions", type=int, default=5, help="每张图最多生成问题数量")
+    parser.add_argument("--min-questions", type=int, default=2, help="每张图最少生成问题数量")
     parser.add_argument("--max-concurrency", type=int, default=24, help="整体最大并发请求数")
     parser.add_argument("--model", type=str, default=None, help="模型名称")
     parser.add_argument("--base-url", type=str, default="http://10.129.107.145:8001/v1", help="vLLM 服务地址")

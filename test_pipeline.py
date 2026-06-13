@@ -38,9 +38,6 @@ def parse_questions(response: str) -> list[dict]:
         "location",
         "spatial_relation",
         "counting",
-        "scene",
-        "comparison",
-        "reasoning",
     }
     for line in response.strip().split("\n"):
         line = line.strip()
@@ -100,7 +97,7 @@ print("\n[4/6] Phase 2: 生成问题...")
 try:
     question_prompt = QUESTION_GENERATION_PROMPT.format(
         num_questions=5,
-        min_questions=3,
+        min_questions=2,
         description=description,
     )
     response = vlm.call(

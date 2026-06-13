@@ -145,10 +145,6 @@ def validate_answer(answer: str, question_type: str) -> Tuple[bool, List[str], s
         if not re.search(r"有|没有|存在|不存在|可见|不可见", answer_text):
             warnings.append("存在性问题答案不够直接")
 
-    if question_type == "scene":
-        if len(answer_text) > 20:
-            warnings.append("场景题答案偏长，建议压缩为场景类别")
-
     has_blocking_warning = any(
         "高风险词汇" in warning
         or "疑似精确数值" in warning

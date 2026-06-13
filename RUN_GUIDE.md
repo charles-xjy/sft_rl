@@ -165,10 +165,10 @@ python 01_generate_desc.py \
 # 基础用法（使用默认输入）
 python 02_generate_questions.py
 
-# 自定义问题数量
+# 自定义问题数量（默认 2-5 个，根据图像内容自适应）
 python 02_generate_questions.py \
-  --num-questions 10 \
-  --min-questions 6
+  --num-questions 5 \
+  --min-questions 2
 
 # 指定输入输出
 python 02_generate_questions.py \
@@ -262,8 +262,8 @@ python 03_generate_answers.py \
 |------|--------|------|
 | `--input` | `outputs/01_descriptions.jsonl` | Phase 1输出文件 |
 | `--output` | `outputs/02_questions.jsonl` | 输出文件路径 |
-| `--num-questions` | `8` | 每张图尝试生成的问题数量 |
-| `--min-questions` | `5` | 每张图最少需要的问题数量 |
+| `--num-questions` | `5` | 每张图最多生成的问题数量（上限，超出会截断） |
+| `--min-questions` | `2` | 每张图最少需要的问题数量 |
 
 ### Phase 3 特有参数
 
@@ -410,9 +410,10 @@ python 01_generate_desc.py \
   --num-images 200 \
   --seed 42
 
-# 3. Phase 2: 每张图生成8个问题
+# 3. Phase 2: 每张图生成 2-5 个问题（按图像内容自适应）
 python 02_generate_questions.py \
-  --num-questions 8
+  --num-questions 5 \
+  --min-questions 2
 
 # 4. Phase 3: 生成带分析的答案
 python 03_generate_answers.py
@@ -426,13 +427,38 @@ ls -lh outputs/
 如果希望 Phase 1/2/3 同时推进，而不是等上一阶段全部结束后再开始下一阶段，可以使用新的流水线并行入口：
 
 ```bash
+# 直接跑默认配置：LEVIR-CD+ 500 + SECOND 500 = 1000 张图，每图 2-5 个问题
+python run_parallel_pipeline.py
+
+# 等价于显式写出来
 python run_parallel_pipeline.py \
   --datasets "LEVIR-CD+,SECOND" \
-  --samples-per-dataset 10 \
+  --samples-per-dataset "LEVIR-CD+=500,SECOND=500" \
+  --num-questions 5 \
+  --min-questions 2 \
   --max-concurrency 24
 ```
 
-它的行为是：
+#### 默认采样规模
+
+| 数据集 | 采样数量 | 说明 |
+|--------|---------|------|
+| LEVIR-CD+ | 500 | 城市建筑与道路场景 |
+| SECOND | 500 | 多类地表覆盖场景 |
+| **合计** | **1000 张图像** | 每图 2-5 个问题，预计 **2000–5000 个 VQA 样本** |
+
+> 默认不启用 EBD（灾后场景）。若需要纳入 EBD，可显式传 `--datasets "LEVIR-CD+,SECOND,EBD" --samples-per-dataset "LEVIR-CD+=500,SECOND=500,EBD=140" --ebd-per-disaster 20`，按 7 类灾害子目录各抽 20 张。
+
+#### 问题数量自适应
+
+`--num-questions 5 --min-questions 2` 表示每张图生成 **2-5 个**问题，模型会根据图像内容自适应：
+
+- 图像内容简单（如纯水体、单一植被）→ 2 个问题即可
+- 图像内容丰富（多类地物、空间关系复杂）→ 最多 5 个问题
+- 解析后若超过 5 个会硬截断到 5 个，不会让模型为了凑数而重复
+
+#### 行为说明
+
 - Phase 1 一旦产出某张图的描述，就立刻把这张图交给 Phase 2
 - Phase 1 和 Phase 2 会并行推进
 - Phase 3 会等到 Phase 1 和 Phase 2 都全部完成后，再统一开始

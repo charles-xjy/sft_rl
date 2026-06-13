@@ -26,9 +26,6 @@ def parse_questions_response(response: str) -> list:
         "location",
         "spatial_relation",
         "counting",
-        "scene",
-        "comparison",
-        "reasoning",
     }
 
     for line in response.strip().split("\n"):
@@ -48,8 +45,8 @@ def main():
     parser = argparse.ArgumentParser(description="Phase 2: 生成多样化问题")
     parser.add_argument("--input", type=str, default="outputs/01_descriptions.jsonl", help="Phase 1 输出文件")
     parser.add_argument("--output", type=str, default="outputs/02_questions.jsonl", help="输出文件路径")
-    parser.add_argument("--num-questions", type=int, default=8, help="每张图像生成的问题数量")
-    parser.add_argument("--min-questions", type=int, default=5, help="每张图像最少生成的问题数量")
+    parser.add_argument("--num-questions", type=int, default=5, help="每张图像最多生成的问题数量")
+    parser.add_argument("--min-questions", type=int, default=2, help="每张图像最少生成的问题数量")
     parser.add_argument("--model", type=str, default=None, help="模型名称")
     parser.add_argument("--base-url", type=str, default="http://10.129.107.145:8001/v1", help="vLLM 服务地址")
     parser.add_argument("--retries", type=int, default=3, help="失败重试次数")
@@ -113,6 +110,8 @@ def main():
                 )
 
                 questions = parse_questions_response(response)
+                if len(questions) > args.num_questions:
+                    questions = questions[: args.num_questions]
                 if questions:
                     record = {
                         "image_path": desc["image_path"],
