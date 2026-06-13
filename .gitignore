@@ -3,3 +3,6 @@
 /saves/
 /model/
 /.idea/
+__pycache__/
+*.pyc
+outputs/

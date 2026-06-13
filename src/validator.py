@@ -5,14 +5,35 @@ import re
 from typing import List, Tuple
 
 # 高风险词汇列表
+# 注意："面积"、"米"、"距离"等词在某些语境下是合理的（如"占据最大面积"）
+# 只有配合数字/单位出现时才是风险（如"面积123平方米"、"距离50米"）
+
 HIGH_RISK_WORDS = [
+    # 精确坐标相关 - 直接拦截
     "坐标", "经度", "纬度", "GPS", "GNSS", "InSAR",
-    "面积", "平方米", "平方公里", "公顷",
-    "米", "公里", "千米", "位移", "距离",
+
+    # 面积单位 - 直接拦截（"面积"本身不拦截，看后面是否跟数字）
+    "平方米", "平方公里", "公顷",
+
+    # 长度单位 - 直接拦截（"米"、"距离"本身不拦截）
+    "公里", "千米", "位移",
+
+    # 因果推断 - 直接拦截
     "成因", "原因", "导致", "引发",
+
+    # 行政建议 - 直接拦截
     "建议", "应该", "需要", "必须", "方案", "治理", "修复", "避让",
     "禁建区", "缓冲区", "监测", "传感器",
+
+    # 机构相关 - 直接拦截
     "政府", "部门", "赔偿", "补偿", "安置",
+]
+
+# 需要结合数字/单位判断的风险词（单独出现不拦截）
+CONTEXTUAL_RISK_PATTERNS = [
+    r"面积[是为约]?[0-9零一二三四五六七八九十百千]",  # 面积是123...
+    r"[0-9零一二三四五六七八九十百千]+[米]",          # 123米
+    r"距离[约]?[0-9零一二三四五六七八九十百千]",       # 距离123...
 ]
 
 # 问题类型配置
@@ -58,6 +79,11 @@ def validate_answer(answer: str, question_type: str) -> Tuple[bool, List[str], s
     for word in HIGH_RISK_WORDS:
         if word in answer:
             warnings.append(f"包含高风险词汇: {word}")
+
+    # 检查上下文相关的风险（配合数字的精确表达）
+    for pattern in CONTEXTUAL_RISK_PATTERNS:
+        if re.search(pattern, answer):
+            warnings.append(f"包含高风险表达: 疑似编造精确数值")
 
     # 按问题类型做专项检查
     answer_match = re.search(r"<answer>(.*?)</answer>", answer, re.DOTALL)
