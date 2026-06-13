@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Run the three-stage pipeline with pipeline parallelism.
+Run the three-stage pipeline with staged parallelism.
 
 Phase 1 emits descriptions.
 Phase 2 starts as soon as a description is ready.
-Phase 3 starts as soon as a question is ready.
+Phase 3 waits until Phase 1 and Phase 2 are both fully complete,
+then runs over all pending questions.
 Overall concurrent API requests are capped by --max-concurrency.
 """
 import argparse
@@ -234,7 +235,7 @@ def build_relevant_answer_keys(processed_answer_keys: set, sampled_image_paths: 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run the 3-stage pipeline with pipeline parallelism")
+    parser = argparse.ArgumentParser(description="Run the 3-stage pipeline with staged parallelism")
     parser.add_argument("--dataset-root", type=str, default="dataset", help="数据集根目录")
     parser.add_argument("--datasets", type=str, default="LEVIR-CD+,SECOND", help="要处理的数据集，逗号分隔")
     parser.add_argument("--num-images", type=int, default=None, help="全局随机采样总数；传入后优先于 --samples-per-dataset")
@@ -314,14 +315,6 @@ def main():
                 question_key = f"{abs_image_path}|{question_item['question']}"
                 if question_key not in processed_answer_keys:
                     phase3_pending_initial += 1
-                    task_queue.append({
-                        "stage": "phase3",
-                        "dataset": question_record["dataset"],
-                        "image_path": abs_image_path,
-                        "description": question_record["description"],
-                        "question_type": question_item["question_type"],
-                        "question": question_item["question"],
-                    })
                 else:
                     phase3_done_initial += 1
         elif desc_record:
@@ -346,6 +339,7 @@ def main():
     print(f"max_concurrency: {args.max_concurrency}")
     print(f"resolved_model: {resolved_model}")
     print("resume support: enabled")
+    print("execution mode: P1/P2 parallel, P3 after P1/P2 complete")
 
     stats = defaultdict(int)
     stats["phase1_completed"] = phase1_done_initial
@@ -368,6 +362,44 @@ def main():
         else:
             raise ValueError(f"unknown task stage: {stage}")
         future_to_task[future] = task
+
+    phase12_complete = False
+
+    def build_phase3_tasks() -> List[dict]:
+        """Build all pending Phase 3 tasks from the latest Phase 2 outputs."""
+        question_records_latest = load_question_records(question_path)
+        phase3_tasks: List[dict] = []
+        for abs_image_path in sampled_image_paths:
+            question_record = question_records_latest.get(abs_image_path)
+            if not question_record:
+                continue
+            for question_item in question_record.get("questions", []):
+                question_key = f"{abs_image_path}|{question_item['question']}"
+                if question_key in processed_answer_keys:
+                    continue
+                phase3_tasks.append({
+                    "stage": "phase3",
+                    "dataset": question_record["dataset"],
+                    "image_path": abs_image_path,
+                    "description": question_record["description"],
+                    "question_type": question_item["question_type"],
+                    "question": question_item["question"],
+                })
+        return phase3_tasks
+
+    def maybe_enqueue_phase3():
+        """Once P1/P2 are finished, enqueue all pending P3 tasks exactly once."""
+        nonlocal phase12_complete, phase3_total
+        if phase12_complete:
+            return
+        if stats["phase1_completed"] < phase1_total:
+            return
+        if stats["phase2_completed"] < phase2_total:
+            return
+        phase3_tasks = build_phase3_tasks()
+        phase3_total = stats["phase3_completed"] + len(phase3_tasks)
+        task_queue.extend(phase3_tasks)
+        phase12_complete = True
 
     def drain_queue(executor: ThreadPoolExecutor):
         while task_queue and len(future_to_task) < args.max_concurrency:
@@ -431,23 +463,6 @@ def main():
                         stats["phase2_questions_generated"] += len(questions)
                         p2_bar.update(1)
                         p2_bar.set_postfix(done=stats["phase2_completed"], questions=stats["phase2_questions_generated"], active=len(future_to_task))
-                        new_questions = 0
-                        for question_item in questions:
-                            question_key = f"{result['image_path']}|{question_item['question']}"
-                            if question_key in processed_answer_keys:
-                                continue
-                            task_queue.append({
-                                "stage": "phase3",
-                                "dataset": result["dataset"],
-                                "image_path": result["image_path"],
-                                "description": result["description"],
-                                "question_type": question_item["question_type"],
-                                "question": question_item["question"],
-                            })
-                            new_questions += 1
-                        phase3_total += new_questions
-                        p3_bar.total = phase3_total
-                        p3_bar.refresh()
 
                 elif kind == "phase3":
                     append_jsonl(answer_path, result["record"], answer_lock)
@@ -461,6 +476,9 @@ def main():
                         stats["phase3_auto_pass"] += 1
                         p3_bar.set_postfix(done=stats["phase3_completed"], auto_pass=stats["phase3_auto_pass"], active=len(future_to_task))
 
+                maybe_enqueue_phase3()
+                p3_bar.total = phase3_total
+                p3_bar.refresh()
                 drain_queue(executor)
 
     with open(stats_path, "w", encoding="utf-8") as f:

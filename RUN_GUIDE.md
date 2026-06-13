@@ -399,7 +399,8 @@ python run_parallel_pipeline.py \
 
 它的行为是：
 - Phase 1 一旦产出某张图的描述，就立刻把这张图交给 Phase 2
-- Phase 2 一旦产出问题，就立刻把这些问题交给 Phase 3
+- Phase 1 和 Phase 2 会并行推进
+- Phase 3 会等到 Phase 1 和 Phase 2 都全部完成后，再统一开始
 - 三个阶段共用一个并发上限，默认最多同时跑 24 个请求
 - 首次运行会把采样结果固化到 `outputs/sample_manifest.jsonl`
 - 后续默认复用同一份 manifest 做断点续跑，不会重新随机
