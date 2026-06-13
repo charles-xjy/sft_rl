@@ -378,21 +378,36 @@ pip install openai tqdm
 
 教师模型需要以 OpenAI 兼容接口方式部署。默认服务地址为 `http://localhost:8001`。
 
+实测可用的部署命令（Qwen3.5-27B，2 卡 TP）：
+
 ```bash
-CUDA_VISIBLE_DEVICES=1,2 vllm serve Qwen/Qwen3-VL-32B-Instruct \
-  --trust-remote-code --dtype bfloat16 \
-  --tensor-parallel-size 2 --max-model-len 12000 \
-  --enforce-eager \
-  --gpu-memory-utilization 0.95 --port 8001
+CUDA_VISIBLE_DEVICES=1,2 \
+vllm serve Qwen/Qwen3.5-27B \
+  --trust-remote-code \
+  --dtype bfloat16 \
+  --mm-encoder-tp-mode data \
+  --mm-processor-cache-type shm \
+  --reasoning-parser qwen3 \
+  --enable-prefix-caching \
+  --gpu-memory-utilization 0.9 \
+  --max-model-len 8192 \
+  --tensor-parallel-size 2 \
+  --port 8001
 ```
+
+关键参数说明：
+
+- `--mm-encoder-tp-mode data`：多模态视觉编码器走 data parallel，多卡下吞吐更高。
+- `--mm-processor-cache-type shm`：图像预处理结果走共享内存缓存，重复访问同图时命中。
+- `--reasoning-parser qwen3`：启用 Qwen3 系列的思考链解析；流水线侧可通过 `enable_thinking=False` 关闭思考以避免输出截断（详见 [常见问题排查](RUN_GUIDE.md#常见问题排查)）。
+- `--enable-prefix-caching`：相同前缀的 prompt 复用 KV cache，对本项目这种 prompt 模板高度重复的场景显著提速。
+- `--max-model-len 8192`：图像 token + prompt + 答案够用；如果遇到超长 prompt 报错，再增大。
 
 或使用 `swift`：
 
 ```bash
-swift deploy --model Qwen/Qwen3-VL-32B-Instruct --port 8001 --infer_backend vllm
+swift deploy --model Qwen/Qwen3.5-27B --port 8001 --infer_backend vllm
 ```
-
-`--enforce-eager` 用于规避部分多模态模型在 vLLM CUDA graph 模式下的动态图像 token buffer 问题。
 
 ## 运行方式
 

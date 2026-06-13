@@ -60,22 +60,42 @@ python 01_generate_desc.py
 
 ## 启动vLLM服务
 
-### Qwen3-VL 推荐配置
+### 推荐配置（实测可用）
+
+适用于 Qwen3.5-27B / Qwen3-VL 系列，2 卡 tensor parallel：
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 vllm serve Qwen/Qwen3-VL-32B-Instruct \
+CUDA_VISIBLE_DEVICES=1,2 \
+vllm serve Qwen/Qwen3.5-27B \
   --trust-remote-code \
   --dtype bfloat16 \
+  --mm-encoder-tp-mode data \
+  --mm-processor-cache-type shm \
+  --reasoning-parser qwen3 \
+  --enable-prefix-caching \
+  --gpu-memory-utilization 0.9 \
+  --max-model-len 8192 \
   --tensor-parallel-size 2 \
-  --max-model-len 4096 \
-  --gpu-memory-utilization 0.95 \
   --port 8001
 ```
+
+关键参数：
+
+| 参数 | 作用 |
+|---|---|
+| `--mm-encoder-tp-mode data` | 多模态视觉编码器使用 data parallel，多卡下吞吐更高 |
+| `--mm-processor-cache-type shm` | 图像预处理结果走共享内存缓存，重复访问同图时命中 |
+| `--reasoning-parser qwen3` | 启用 Qwen3 思考链解析；流水线侧可通过 `enable_thinking=False` 关掉思考避免输出截断 |
+| `--enable-prefix-caching` | 相同前缀的 prompt 复用 KV cache，对模板高度重复的本项目显著提速 |
+| `--max-model-len 8192` | 图像 token + prompt + 答案够用；遇超长 prompt 报错再加大 |
+| `--gpu-memory-utilization 0.9` | 留 10% 显存给峰值，避免 OOM |
+
+> 流水线已默认通过 `extra_body={"chat_template_kwargs": {"enable_thinking": False}}` 关闭思考模式，正常情况下不会再出现 `finish_reason=length` 把 4096 tokens 全花在 reasoning 上的问题。详见 [常见问题排查](#常见问题排查)。
 
 ### 使用Swift部署（备选）
 
 ```bash
-swift deploy --model Qwen/Qwen3-VL-32B-Instruct \
+swift deploy --model Qwen/Qwen3.5-27B \
   --port 8001 \
   --infer-backend vllm
 ```
@@ -84,9 +104,15 @@ swift deploy --model Qwen/Qwen3-VL-32B-Instruct \
 
 ```bash
 # 4卡部署
-CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve Qwen/Qwen3-VL-32B-Instruct \
+CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve Qwen/Qwen3.5-27B \
   --trust-remote-code \
   --dtype bfloat16 \
+  --mm-encoder-tp-mode data \
+  --mm-processor-cache-type shm \
+  --reasoning-parser qwen3 \
+  --enable-prefix-caching \
+  --gpu-memory-utilization 0.9 \
+  --max-model-len 8192 \
   --tensor-parallel-size 4 \
   --port 8000
 ```
@@ -366,10 +392,18 @@ print(f'Pass: {pass_count}/{total} ({pass_count/total*100:.1f}%)')
 ```bash
 # ==================== 完整流程 ====================
 
-# 1. 启动vLLM服务
-CUDA_VISIBLE_DEVICES=0,1 vllm serve Qwen/Qwen3-VL-32B-Instruct \
-  --trust-remote-code --dtype bfloat16 \
-  --tensor-parallel-size 2 --port 8001 &
+# 1. 启动vLLM服务（详见 "启动vLLM服务" 节）
+CUDA_VISIBLE_DEVICES=1,2 vllm serve Qwen/Qwen3.5-27B \
+  --trust-remote-code \
+  --dtype bfloat16 \
+  --mm-encoder-tp-mode data \
+  --mm-processor-cache-type shm \
+  --reasoning-parser qwen3 \
+  --enable-prefix-caching \
+  --gpu-memory-utilization 0.9 \
+  --max-model-len 8192 \
+  --tensor-parallel-size 2 \
+  --port 8001 &
 
 # 2. Phase 1: 生成200张图像的描述
 python 01_generate_desc.py \
