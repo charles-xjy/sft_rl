@@ -82,6 +82,98 @@ def sample_per_dataset(
     return samples
 
 
+def parse_per_dataset_spec(spec_str: str) -> Dict[str, int]:
+    """Parse a per-dataset sample spec like "EBD=140,LEVIR-CD+=200,SECOND=200".
+
+    Returns a dict mapping dataset name to sample count.
+    A single integer string ("10") is rejected here — the caller should detect
+    that case and fall back to the uniform-count code path.
+    """
+    spec: Dict[str, int] = {}
+    for chunk in spec_str.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        if "=" not in chunk:
+            raise ValueError(
+                f"invalid per-dataset spec entry: {chunk!r} "
+                f"(expected 'NAME=COUNT' like 'LEVIR-CD+=200')"
+            )
+        name, _, count_str = chunk.partition("=")
+        name = name.strip()
+        count_str = count_str.strip()
+        try:
+            count = int(count_str)
+        except ValueError:
+            raise ValueError(f"invalid count for dataset {name!r}: {count_str!r}")
+        if count < 0:
+            raise ValueError(f"sample count must be non-negative: {name}={count}")
+        spec[name] = count
+    return spec
+
+
+def sample_ebd_per_disaster(
+    images: List[Path],
+    per_disaster: int,
+    seed: int = 42,
+) -> List[Path]:
+    """Sample N post-disaster images from each EBD disaster sub-directory.
+
+    EBD layout: dataset/EBD/<DISASTER_NAME>/images/*_post_disaster.*
+    The disaster name is recovered from `image.parent.parent.name`.
+    """
+    rng = random.Random(seed)
+    by_disaster: Dict[str, List[Path]] = {}
+    for img in images:
+        try:
+            disaster = img.parent.parent.name  # .../<DISASTER>/images/<file>
+        except Exception:
+            disaster = "_unknown_"
+        by_disaster.setdefault(disaster, []).append(img)
+
+    selected: List[Path] = []
+    for disaster in sorted(by_disaster.keys()):
+        bucket = list(by_disaster[disaster])
+        rng.shuffle(bucket)
+        selected.extend(bucket[:per_disaster])
+    return selected
+
+
+def sample_with_spec(
+    images_by_dataset: Dict[str, List[Path]],
+    spec: Dict[str, int],
+    seed: int = 42,
+    ebd_per_disaster: int = None,
+) -> List[Tuple[str, Path]]:
+    """Sample images per dataset according to `spec`.
+
+    `spec[name]` controls the count for each dataset. A dataset that is not in
+    `spec` is skipped entirely (no implicit default). When `ebd_per_disaster`
+    is set and EBD is present in `images_by_dataset`, EBD is sampled by
+    drawing N images from each disaster sub-directory instead of using
+    `spec.get("EBD")`.
+    """
+    rng = random.Random(seed)
+    samples: List[Tuple[str, Path]] = []
+
+    for dataset, images in images_by_dataset.items():
+        if dataset == "EBD" and ebd_per_disaster is not None:
+            selected = sample_ebd_per_disaster(images, ebd_per_disaster, seed=seed)
+            samples.extend(("EBD", img) for img in selected)
+            continue
+
+        if dataset not in spec:
+            continue
+        count = spec[dataset]
+        if count <= 0:
+            continue
+        shuffled = list(images)
+        rng.shuffle(shuffled)
+        samples.extend((dataset, img) for img in shuffled[:count])
+
+    return samples
+
+
 def load_processed_records(output_file: Path, key_field: str = "image_path") -> set:
     """Load processed records from an output file for resume support."""
     processed = set()

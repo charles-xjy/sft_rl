@@ -22,7 +22,9 @@ from tqdm import tqdm
 from src.prompts import ANSWER_GENERATION_PROMPT, DESCRIPTION_PROMPT, QUESTION_GENERATION_PROMPT
 from src.scanner import (
     load_manifest,
+    parse_per_dataset_spec,
     sample_per_dataset,
+    sample_with_spec,
     save_manifest,
     scan_all_datasets,
     stratified_sample,
@@ -239,7 +241,22 @@ def main():
     parser.add_argument("--dataset-root", type=str, default="dataset", help="数据集根目录")
     parser.add_argument("--datasets", type=str, default="LEVIR-CD+,SECOND", help="要处理的数据集，逗号分隔")
     parser.add_argument("--num-images", type=int, default=None, help="全局随机采样总数；传入后优先于 --samples-per-dataset")
-    parser.add_argument("--samples-per-dataset", type=int, default=10, help="每个数据集采样数量")
+    parser.add_argument(
+        "--samples-per-dataset",
+        type=str,
+        default="10",
+        help=(
+            "每个数据集采样数量。两种语法："
+            "(1) 单一整数 '10' — 每个数据集都抽 10 张；"
+            "(2) 按数据集指定 'LEVIR-CD+=200,SECOND=200,EBD=140' — 仅抽指定的"
+        ),
+    )
+    parser.add_argument(
+        "--ebd-per-disaster",
+        type=int,
+        default=None,
+        help="EBD 按 7 种灾害子目录各抽 N 张；启用后会覆盖 --samples-per-dataset 里 EBD 的值",
+    )
     parser.add_argument("--num-questions", type=int, default=8, help="每张图目标生成问题数量")
     parser.add_argument("--min-questions", type=int, default=5, help="每张图最少生成问题数量")
     parser.add_argument("--max-concurrency", type=int, default=24, help="整体最大并发请求数")
@@ -274,12 +291,42 @@ def main():
         samples = load_manifest(manifest_path)
         print(f"loaded manifest: {manifest_path} ({len(samples)} images)")
     else:
+        spec_str = args.samples_per_dataset.strip()
+        is_uniform = spec_str.isdigit()
+
         if args.num_images is not None:
             samples = stratified_sample(images_by_dataset, args.num_images, args.seed)
             print(f"global sampled images: {len(samples)}")
+        elif is_uniform and args.ebd_per_disaster is None:
+            uniform_count = int(spec_str)
+            samples = sample_per_dataset(images_by_dataset, uniform_count, args.seed)
+            print(f"per-dataset sampled images: {uniform_count} each, total {len(samples)}")
         else:
-            samples = sample_per_dataset(images_by_dataset, args.samples_per_dataset, args.seed)
-            print(f"per-dataset sampled images: {args.samples_per_dataset} each, total {len(samples)}")
+            if is_uniform:
+                # uniform count + EBD per-disaster: build a spec for non-EBD datasets
+                uniform_count = int(spec_str)
+                spec = {name: uniform_count for name in datasets if name != "EBD"}
+            else:
+                spec = parse_per_dataset_spec(spec_str)
+                unknown = set(spec) - set(datasets)
+                if unknown:
+                    print(f"[warning] spec mentions datasets not in --datasets: {sorted(unknown)}")
+            samples = sample_with_spec(
+                images_by_dataset,
+                spec=spec,
+                seed=args.seed,
+                ebd_per_disaster=args.ebd_per_disaster,
+            )
+            for dataset in images_by_dataset:
+                count = sum(1 for d, _ in samples if d == dataset)
+                if dataset == "EBD" and args.ebd_per_disaster is not None:
+                    print(
+                        f"[{dataset}] sampled {count} images "
+                        f"(EBD per-disaster={args.ebd_per_disaster})"
+                    )
+                else:
+                    print(f"[{dataset}] sampled {count} images")
+            print(f"total sampled images: {len(samples)}")
         save_manifest(manifest_path, samples)
         print(f"saved manifest: {manifest_path}")
 
