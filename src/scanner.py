@@ -95,3 +95,33 @@ def load_processed_records(output_file: Path, key_field: str = "image_path") -> 
                 except Exception:
                     pass
     return processed
+
+
+def load_manifest(manifest_path: Path) -> List[Tuple[str, Path]]:
+    """Load a manifest file of sampled images."""
+    samples: List[Tuple[str, Path]] = []
+    if not manifest_path.exists():
+        return samples
+
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                record = json.loads(line.strip())
+                dataset = record["dataset"]
+                image_path = Path(record["image_path"])
+                samples.append((dataset, image_path))
+            except Exception:
+                pass
+    return samples
+
+
+def save_manifest(manifest_path: Path, samples: List[Tuple[str, Path]]) -> None:
+    """Persist sampled images to a manifest file."""
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        for dataset, image_path in samples:
+            record = {
+                "dataset": dataset,
+                "image_path": str(Path(image_path).resolve()),
+            }
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")

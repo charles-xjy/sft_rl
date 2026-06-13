@@ -16,8 +16,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Deque, Dict, List, Tuple
 
+from tqdm import tqdm
+
 from src.prompts import ANSWER_GENERATION_PROMPT, DESCRIPTION_PROMPT, QUESTION_GENERATION_PROMPT
-from src.scanner import load_processed_records, sample_per_dataset, scan_all_datasets, stratified_sample
+from src.scanner import (
+    load_manifest,
+    sample_per_dataset,
+    save_manifest,
+    scan_all_datasets,
+    stratified_sample,
+)
 from src.validator import validate_answer
 from src.vlm_client import VLMClient
 
@@ -215,6 +223,16 @@ def print_summary(stats: dict, desc_path: Path, question_path: Path, answer_path
     print("=" * 80)
 
 
+def build_relevant_answer_keys(processed_answer_keys: set, sampled_image_paths: set) -> set:
+    """Filter processed answer keys down to the current sampled images."""
+    relevant = set()
+    for key in processed_answer_keys:
+        image_path, _, question = key.partition("|")
+        if image_path in sampled_image_paths and question:
+            relevant.add(key)
+    return relevant
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run the 3-stage pipeline with pipeline parallelism")
     parser.add_argument("--dataset-root", type=str, default="dataset", help="数据集根目录")
@@ -229,6 +247,8 @@ def main():
     parser.add_argument("--retries", type=int, default=3, help="失败重试次数")
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
     parser.add_argument("--output-dir", type=str, default="outputs", help="输出目录")
+    parser.add_argument("--manifest", type=str, default=None, help="样本清单文件路径；默认 outputs/sample_manifest.jsonl")
+    parser.add_argument("--refresh-manifest", action="store_true", help="忽略已有 manifest，重新采样并覆盖")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -237,6 +257,7 @@ def main():
     question_path = output_dir / "02_questions.jsonl"
     answer_path = output_dir / "03_answers_sft.jsonl"
     stats_path = output_dir / "03_stats.json"
+    manifest_path = Path(args.manifest) if args.manifest else output_dir / "sample_manifest.jsonl"
 
     dataset_root = Path(args.dataset_root)
     datasets = [d.strip() for d in args.datasets.split(",") if d.strip()]
@@ -248,12 +269,18 @@ def main():
     for dataset, images in images_by_dataset.items():
         print(f"[{dataset}] found {len(images)} images")
 
-    if args.num_images is not None:
-        samples = stratified_sample(images_by_dataset, args.num_images, args.seed)
-        print(f"global sampled images: {len(samples)}")
+    if manifest_path.exists() and not args.refresh_manifest:
+        samples = load_manifest(manifest_path)
+        print(f"loaded manifest: {manifest_path} ({len(samples)} images)")
     else:
-        samples = sample_per_dataset(images_by_dataset, args.samples_per_dataset, args.seed)
-        print(f"per-dataset sampled images: {args.samples_per_dataset} each, total {len(samples)}")
+        if args.num_images is not None:
+            samples = stratified_sample(images_by_dataset, args.num_images, args.seed)
+            print(f"global sampled images: {len(samples)}")
+        else:
+            samples = sample_per_dataset(images_by_dataset, args.samples_per_dataset, args.seed)
+            print(f"per-dataset sampled images: {args.samples_per_dataset} each, total {len(samples)}")
+        save_manifest(manifest_path, samples)
+        print(f"saved manifest: {manifest_path}")
 
     bootstrap_client = VLMClient(base_url=args.base_url, model=args.model, retries=args.retries)
     resolved_model = bootstrap_client.model
@@ -268,15 +295,25 @@ def main():
     answer_lock = threading.Lock()
 
     task_queue: Deque[dict] = deque()
+    sampled_image_paths = set()
+    phase1_done_initial = 0
+    phase2_done_initial = 0
+    phase3_done_initial = 0
+    phase3_pending_initial = 0
+
     for dataset, image_path in samples:
         abs_image_path = str(Path(image_path).resolve())
+        sampled_image_paths.add(abs_image_path)
         desc_record = description_records.get(abs_image_path)
         question_record = question_records.get(abs_image_path)
 
         if question_record:
+            phase1_done_initial += 1
+            phase2_done_initial += 1
             for question_item in question_record.get("questions", []):
                 question_key = f"{abs_image_path}|{question_item['question']}"
                 if question_key not in processed_answer_keys:
+                    phase3_pending_initial += 1
                     task_queue.append({
                         "stage": "phase3",
                         "dataset": question_record["dataset"],
@@ -285,7 +322,10 @@ def main():
                         "question_type": question_item["question_type"],
                         "question": question_item["question"],
                     })
+                else:
+                    phase3_done_initial += 1
         elif desc_record:
+            phase1_done_initial += 1
             task_queue.append({
                 "stage": "phase2",
                 "dataset": desc_record["dataset"],
@@ -299,11 +339,22 @@ def main():
                 "image_path": abs_image_path,
             })
 
+    relevant_processed_answer_keys = build_relevant_answer_keys(processed_answer_keys, sampled_image_paths)
+    phase3_done_initial = len(relevant_processed_answer_keys)
+
     print(f"initial scheduled tasks: {len(task_queue)}")
     print(f"max_concurrency: {args.max_concurrency}")
     print(f"resolved_model: {resolved_model}")
+    print("resume support: enabled")
 
     stats = defaultdict(int)
+    stats["phase1_completed"] = phase1_done_initial
+    stats["phase2_completed"] = phase2_done_initial
+    stats["phase3_completed"] = phase3_done_initial
+    stats["phase2_questions_generated"] = phase3_done_initial + phase3_pending_initial
+    phase1_total = len(samples)
+    phase2_total = len(samples)
+    phase3_total = phase3_done_initial + phase3_pending_initial
     future_to_task: Dict[object, dict] = {}
 
     def submit_task(executor: ThreadPoolExecutor, task: dict):
@@ -322,7 +373,10 @@ def main():
         while task_queue and len(future_to_task) < args.max_concurrency:
             submit_task(executor, task_queue.popleft())
 
-    with ThreadPoolExecutor(max_workers=args.max_concurrency) as executor:
+    with tqdm(total=phase1_total, initial=phase1_done_initial, desc="P1 descriptions", position=0) as p1_bar, \
+         tqdm(total=phase2_total, initial=phase2_done_initial, desc="P2 questions", position=1) as p2_bar, \
+         tqdm(total=phase3_total, initial=phase3_done_initial, desc="P3 answers", position=2) as p3_bar, \
+         ThreadPoolExecutor(max_workers=args.max_concurrency) as executor:
         drain_queue(executor)
 
         while future_to_task:
@@ -333,14 +387,15 @@ def main():
                     result = future.result()
                 except Exception as e:
                     stats["errors"] += 1
-                    print(f"[error] {task['stage']} | {task.get('image_path', '')}: {e}")
+                    tqdm.write(f"[error] {task['stage']} | {task.get('image_path', '')}: {e}")
+                    drain_queue(executor)
                     continue
 
                 kind = result["kind"]
                 if kind == "phase1":
                     description = result["description"]
                     if not description:
-                        print(f"[empty-output] {Path(result['image_path']).name}: model returned empty description")
+                        tqdm.write(f"[empty-output] {Path(result['image_path']).name}: model returned empty description")
                     else:
                         desc_record = {
                             "image_path": result["image_path"],
@@ -350,6 +405,8 @@ def main():
                         }
                         append_jsonl(desc_path, desc_record, desc_lock)
                         stats["phase1_completed"] += 1
+                        p1_bar.update(1)
+                        p1_bar.set_postfix(done=stats["phase1_completed"], queued=len(task_queue), active=len(future_to_task))
                         task_queue.append({
                             "stage": "phase2",
                             "dataset": result["dataset"],
@@ -360,7 +417,7 @@ def main():
                 elif kind == "phase2":
                     questions = result["questions"]
                     if not questions:
-                        print(f"[empty-output] {Path(result['image_path']).name}: no valid questions parsed")
+                        tqdm.write(f"[empty-output] {Path(result['image_path']).name}: no valid questions parsed")
                     else:
                         q_record = {
                             "image_path": result["image_path"],
@@ -371,6 +428,10 @@ def main():
                         }
                         append_jsonl(question_path, q_record, question_lock)
                         stats["phase2_completed"] += 1
+                        stats["phase2_questions_generated"] += len(questions)
+                        p2_bar.update(1)
+                        p2_bar.set_postfix(done=stats["phase2_completed"], questions=stats["phase2_questions_generated"], active=len(future_to_task))
+                        new_questions = 0
                         for question_item in questions:
                             question_key = f"{result['image_path']}|{question_item['question']}"
                             if question_key in processed_answer_keys:
@@ -383,15 +444,22 @@ def main():
                                 "question_type": question_item["question_type"],
                                 "question": question_item["question"],
                             })
+                            new_questions += 1
+                        phase3_total += new_questions
+                        p3_bar.total = phase3_total
+                        p3_bar.refresh()
 
                 elif kind == "phase3":
                     append_jsonl(answer_path, result["record"], answer_lock)
                     processed_answer_keys.add(f"{result['image_path']}|{result['question']}")
                     stats["phase3_completed"] += 1
+                    p3_bar.update(1)
+                    p3_bar.set_postfix(done=stats["phase3_completed"], auto_pass=stats["phase3_auto_pass"], active=len(future_to_task))
                     stats[f"dataset_{result['dataset']}"] += 1
                     stats[f"type_{result['question_type']}"] += 1
                     if result["auto_label"] == "pass":
                         stats["phase3_auto_pass"] += 1
+                        p3_bar.set_postfix(done=stats["phase3_completed"], auto_pass=stats["phase3_auto_pass"], active=len(future_to_task))
 
                 drain_queue(executor)
 
