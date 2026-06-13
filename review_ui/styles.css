@@ -1,0 +1,146 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", "PingFang SC", sans-serif;
+  background: linear-gradient(180deg, #edf2f7, #dfe8ee);
+  color: #17202a;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  padding: 24px;
+  background: #0f2d3a;
+  color: #f5f7fa;
+}
+
+.sidebar h1 {
+  margin-top: 0;
+  font-size: 28px;
+}
+
+.summary p,
+.position {
+  margin: 10px 0;
+}
+
+.filter,
+.nav {
+  margin-top: 20px;
+}
+
+.filter span {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.filter select,
+.nav button,
+.actions button,
+textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #c4d0d8;
+  padding: 12px 14px;
+  font-size: 15px;
+  box-sizing: border-box;
+}
+
+.nav {
+  display: grid;
+  gap: 10px;
+}
+
+.viewer {
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.imageWrap,
+.card {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+.imageWrap {
+  padding: 16px;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.imageWrap img {
+  max-width: 100%;
+  max-height: 68vh;
+  object-fit: contain;
+  border-radius: 14px;
+}
+
+.card {
+  padding: 18px 20px;
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.textBlock {
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pre {
+  font-family: "Consolas", monospace;
+  font-size: 14px;
+}
+
+.decision {
+  display: grid;
+  gap: 12px;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.approve {
+  background: #167c59;
+  color: #fff;
+}
+
+.reject {
+  background: #a33b32;
+  color: #fff;
+}
+
+textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.reviewStatus {
+  margin: 0;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    padding-bottom: 16px;
+  }
+}

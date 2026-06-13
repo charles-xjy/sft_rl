@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VQA Review</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="app">
+    <aside class="sidebar">
+      <h1>人工审批</h1>
+      <div class="summary" id="summary"></div>
+      <label class="filter">
+        <span>筛选</span>
+        <select id="filter">
+          <option value="pending">未审批</option>
+          <option value="all">全部</option>
+          <option value="approved">仅通过</option>
+          <option value="rejected">仅不通过</option>
+        </select>
+      </label>
+      <div class="nav">
+        <button id="prevBtn">上一条</button>
+        <button id="nextBtn">下一条</button>
+      </div>
+      <p class="position" id="position"></p>
+    </aside>
+
+    <section class="viewer">
+      <div class="imageWrap">
+        <img id="image" alt="review image">
+      </div>
+      <div class="card">
+        <h2>问题</h2>
+        <p id="question" class="textBlock"></p>
+      </div>
+      <div class="card">
+        <h2>答案</h2>
+        <pre id="answer" class="textBlock pre"></pre>
+      </div>
+      <div class="card">
+        <h2>自动质检</h2>
+        <pre id="meta" class="textBlock pre"></pre>
+      </div>
+      <div class="card decision">
+        <div class="actions">
+          <button class="approve" id="approveBtn">通过</button>
+          <button class="reject" id="rejectBtn">不通过</button>
+        </div>
+        <textarea id="note" placeholder="可选备注"></textarea>
+        <p id="reviewStatus" class="reviewStatus"></p>
+      </div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

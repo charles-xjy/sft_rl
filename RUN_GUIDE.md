@@ -405,3 +405,26 @@ python run_parallel_pipeline.py \
 - 首次运行会把采样结果固化到 `outputs/sample_manifest.jsonl`
 - 后续默认复用同一份 manifest 做断点续跑，不会重新随机
 - 如果确实要重新抽样，显式传 `--refresh-manifest`
+
+### 人工审批前端
+
+如果希望人工浏览图片、问题和答案，并手动选择“通过 / 不通过”，可以启动本地审阅工具：
+
+```bash
+python review_server.py \
+  --input outputs/03_answers_sft.jsonl \
+  --reviews outputs/manual_reviews.jsonl \
+  --port 8008
+```
+
+打开：
+
+```text
+http://127.0.0.1:8008
+```
+
+功能：
+- 展示图片、问题、答案和自动质检结果
+- 手动选择“通过 / 不通过”
+- 审批结果写入 `outputs/manual_reviews.jsonl`
+- 支持按“未审批 / 全部 / 仅通过 / 仅不通过”筛选
