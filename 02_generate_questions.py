@@ -108,7 +108,7 @@ def main():
                 response = vlm.call(
                     prompt=prompt,
                     image_path=image_path,
-                    max_tokens=768,
+                    max_tokens=4096,
                     temperature=0.4,
                 )
 
