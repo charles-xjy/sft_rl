@@ -13,15 +13,16 @@ from pathlib import Path
 from tqdm import tqdm
 
 from src.prompts import DESCRIPTION_PROMPT
-from src.scanner import load_processed_records, scan_all_datasets, stratified_sample
+from src.scanner import load_processed_records, sample_per_dataset, scan_all_datasets, stratified_sample
 from src.vlm_client import VLMClient
 
 
 def main():
     parser = argparse.ArgumentParser(description="Phase 1: 生成图像描述")
     parser.add_argument("--dataset-root", type=str, default="dataset", help="数据集根目录")
-    parser.add_argument("--datasets", type=str, default="EBD,LEVIR-CD+,SECOND", help="要处理的数据集，逗号分隔")
-    parser.add_argument("--num-images", type=int, default=100, help="处理的图像数量")
+    parser.add_argument("--datasets", type=str, default="LEVIR-CD+,SECOND", help="要处理的数据集，逗号分隔")
+    parser.add_argument("--num-images", type=int, default=None, help="全局随机采样总数；传入后优先于 --samples-per-dataset")
+    parser.add_argument("--samples-per-dataset", type=int, default=10, help="每个数据集采样数量")
     parser.add_argument("--model", type=str, default=None, help="模型名称")
     parser.add_argument("--base-url", type=str, default="http://10.129.107.145:8001/v1", help="vLLM 服务地址")
     parser.add_argument("--retries", type=int, default=3, help="失败重试次数")
@@ -42,8 +43,12 @@ def main():
     for dataset, images in images_by_dataset.items():
         print(f"[{dataset}] 找到 {len(images)} 张图像")
 
-    samples = stratified_sample(images_by_dataset, args.num_images, args.seed)
-    print(f"\n分层采样后共选择 {len(samples)} 张图像")
+    if args.num_images is not None:
+        samples = stratified_sample(images_by_dataset, args.num_images, args.seed)
+        print(f"\n全局随机采样后共选择 {len(samples)} 张图像")
+    else:
+        samples = sample_per_dataset(images_by_dataset, args.samples_per_dataset, args.seed)
+        print(f"\n按数据集采样：每个数据集 {args.samples_per_dataset} 张，共 {len(samples)} 张图像")
 
     processed_images = load_processed_records(output_file, "image_path")
     if processed_images:

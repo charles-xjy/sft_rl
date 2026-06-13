@@ -99,14 +99,19 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve Qwen/Qwen3-VL-32B-Instruct \
 **作用**：让教师模型先对每张图像生成保守、客观的描述，作为后续问答的"证据边界"。
 
 ```bash
-# 基础用法
-python 01_generate_desc.py --num-images 100
+# 基础用法：默认只跑 LEVIR-CD+ 和 SECOND，各采样 10 张
+python 01_generate_desc.py
 
-# 指定数据集和种子
+# 指定数据集并设置每个数据集采样数
 python 01_generate_desc.py \
-  --datasets "EBD,LEVIR-CD+" \
-  --num-images 50 \
+  --datasets "LEVIR-CD+,SECOND" \
+  --samples-per-dataset 10 \
   --seed 12345
+
+# 如果需要恢复全局混合随机采样
+python 01_generate_desc.py \
+  --datasets "EBD,LEVIR-CD+,SECOND" \
+  --num-images 50
 
 # 自定义输出路径
 python 01_generate_desc.py \
@@ -218,8 +223,9 @@ python 03_generate_answers.py \
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--dataset-root` | `dataset` | 数据集根目录 |
-| `--datasets` | `EBD,LEVIR-CD+,SECOND` | 要处理的数据集，逗号分隔 |
-| `--num-images` | `100` | 处理的图像数量 |
+| `--datasets` | `LEVIR-CD+,SECOND` | 要处理的数据集，逗号分隔 |
+| `--num-images` | `None` | 全局混合随机采样总数 |
+| `--samples-per-dataset` | `10` | 每个数据集采样数量 |
 | `--seed` | `42` | 随机种子，用于复现采样结果 |
 | `--output` | `outputs/01_descriptions.jsonl` | 输出文件路径 |
 
@@ -379,3 +385,19 @@ python 03_generate_answers.py
 # 5. 查看最终结果
 ls -lh outputs/
 ```
+
+### 流水线并行运行
+
+如果希望 Phase 1/2/3 同时推进，而不是等上一阶段全部结束后再开始下一阶段，可以使用新的流水线并行入口：
+
+```bash
+python run_parallel_pipeline.py \
+  --datasets "LEVIR-CD+,SECOND" \
+  --samples-per-dataset 10 \
+  --max-concurrency 24
+```
+
+它的行为是：
+- Phase 1 一旦产出某张图的描述，就立刻把这张图交给 Phase 2
+- Phase 2 一旦产出问题，就立刻把这些问题交给 Phase 3
+- 三个阶段共用一个并发上限，默认最多同时跑 24 个请求
