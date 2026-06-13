@@ -8,19 +8,20 @@ html, body {
 
 .app {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  min-height: 100vh;
+  grid-template-columns: 260px 1fr;
+  height: 100vh;
 }
 
 .sidebar {
   padding: 24px;
   background: #0f2d3a;
   color: #f5f7fa;
+  overflow-y: auto;
 }
 
 .sidebar h1 {
   margin-top: 0;
-  font-size: 28px;
+  font-size: 26px;
 }
 
 .summary p,
@@ -56,40 +57,53 @@ textarea {
 }
 
 .viewer {
-  padding: 24px;
+  padding: 18px;
   display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   gap: 18px;
-}
-
-.imageWrap,
-.card {
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 20px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  height: 100vh;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .imageWrap {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
   padding: 16px;
-  min-height: 360px;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .imageWrap img {
   max-width: 100%;
-  max-height: 68vh;
+  max-height: 100%;
   object-fit: contain;
   border-radius: 14px;
 }
 
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding-right: 4px;
+  min-height: 0;
+}
+
 .card {
-  padding: 18px 20px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  padding: 16px 18px;
 }
 
 .card h2 {
-  margin: 0 0 12px;
-  font-size: 18px;
+  margin: 0 0 10px;
+  font-size: 16px;
 }
 
 .textBlock {
@@ -101,12 +115,16 @@ textarea {
 
 .pre {
   font-family: "Consolas", monospace;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .decision {
+  position: sticky;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .actions {
@@ -126,13 +144,34 @@ textarea {
 }
 
 textarea {
-  min-height: 100px;
+  min-height: 70px;
   resize: vertical;
 }
 
 .reviewStatus {
   margin: 0;
   font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+  .viewer {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  .imageWrap {
+    max-height: 60vh;
+  }
+
+  .detail {
+    overflow: visible;
+  }
+
+  .app {
+    height: auto;
+    min-height: 100vh;
+  }
 }
 
 @media (max-width: 900px) {
