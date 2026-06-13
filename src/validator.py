@@ -1,109 +1,160 @@
 """
-自动质检规则模块
+Automatic validation rules for generated answers.
 """
 import re
 from typing import List, Tuple
 
-# 高风险词汇列表
-# 注意："面积"、"米"、"距离"等词在某些语境下是合理的（如"占据最大面积"）
-# 只有配合数字/单位出现时才是风险（如"面积123平方米"、"距离50米"）
 
-HIGH_RISK_WORDS = [
-    # 精确坐标相关 - 直接拦截
-    "坐标", "经度", "纬度", "GPS", "GNSS", "InSAR",
-
-    # 面积单位 - 直接拦截（"面积"本身不拦截，看后面是否跟数字）
-    "平方米", "平方公里", "公顷",
-
-    # 长度单位 - 直接拦截（"米"、"距离"本身不拦截）
-    "公里", "千米", "位移",
-
-    # 因果推断 - 直接拦截
-    "成因", "原因", "导致", "引发",
-
-    # 行政建议 - 直接拦截
-    "建议", "应该", "需要", "必须", "方案", "治理", "修复", "避让",
-    "禁建区", "缓冲区", "监测", "传感器",
-
-    # 机构相关 - 直接拦截
-    "政府", "部门", "赔偿", "补偿", "安置",
+DIRECT_RISK_WORDS = [
+    "坐标",
+    "经度",
+    "纬度",
+    "GPS",
+    "GNSS",
+    "InSAR",
+    "成因",
+    "原因",
+    "导致",
+    "引发",
+    "建议",
+    "应该",
+    "需要",
+    "必须",
+    "方案",
+    "治理",
+    "修复",
+    "避让",
+    "禁建区",
+    "缓冲区",
+    "监测",
+    "传感器",
+    "政府",
+    "部门",
+    "赔偿",
+    "补偿",
+    "安置",
 ]
 
-# 需要结合数字/单位判断的风险词（单独出现不拦截）
+
 CONTEXTUAL_RISK_PATTERNS = [
-    r"面积[是为约]?[0-9零一二三四五六七八九十百千]",  # 面积是123...
-    r"[0-9零一二三四五六七八九十百千]+[米]",          # 123米
-    r"距离[约]?[0-9零一二三四五六七八九十百千]",       # 距离123...
+    r"面积\s*(约|为|是)?\s*[0-9零一二三四五六七八九十百千万两\d]+",
+    r"[0-9零一二三四五六七八九十百千万两\d]+\s*(平方米|平方公里|公顷)",
+    r"距离\s*(约|为|是)?\s*[0-9零一二三四五六七八九十百千万两\d]+",
+    r"[0-9零一二三四五六七八九十百千万两\d]+\s*(米|公里|千米)",
 ]
 
-# 问题类型配置
-QUESTION_TYPES = [
-    ("existence", "是否存在某类地物"),
-    ("attribute", "颜色、形状、屋顶类型、材质或纹理"),
-    ("location", "某地物位于图像哪个区域"),
-    ("spatial_relation", "两个地物之间的相对位置或邻接关系"),
-    ("counting", "清晰可见目标的数量或估计数量"),
-    ("scene", "整体场景类型或主要功能区"),
-    ("comparison", "不同区域的建筑、植被、水体或道路密度对比"),
-    ("reasoning", "基于可见证据的简单判断"),
+
+LOCATION_WORDS = [
+    "左上",
+    "左下",
+    "右上",
+    "右下",
+    "左侧",
+    "右侧",
+    "上方",
+    "下方",
+    "中部",
+    "中央",
+    "附近",
+    "相邻",
+    "之间",
 ]
+
+
+META_REASONING_PATTERNS = [
+    r"我认为",
+    r"我猜测",
+    r"让我",
+    r"先分析",
+    r"分析用户请求",
+    r"构建最终答案",
+    r"格式化输出",
+    r"最终审查",
+]
+
+
+def _extract_sections(answer: str):
+    analysis_match = re.search(r"<analysis>(.*?)</analysis>", answer, re.DOTALL)
+    answer_match = re.search(r"<answer>(.*?)</answer>", answer, re.DOTALL)
+    analysis_text = analysis_match.group(1).strip() if analysis_match else ""
+    answer_text = answer_match.group(1).strip() if answer_match else ""
+    return analysis_match, answer_match, analysis_text, answer_text
+
+
+def _find_direct_risks(text: str) -> List[str]:
+    warnings = []
+    for word in DIRECT_RISK_WORDS:
+        if word in text:
+            warnings.append(f"包含高风险词汇: {word}")
+    for pattern in CONTEXTUAL_RISK_PATTERNS:
+        if re.search(pattern, text):
+            warnings.append("包含疑似精确数值/单位表达")
+    return warnings
 
 
 def validate_answer(answer: str, question_type: str) -> Tuple[bool, List[str], str]:
     """
-    自动质检答案
+    Validate a generated answer.
 
     Returns:
-        (是否通过, 警告列表, 自动标签)
+        (is_valid, warnings, auto_label)
     """
-    warnings = []
+    warnings: List[str] = []
 
-    # 检查是否同时包含 analysis 和 answer 标签
     if "<analysis>" not in answer or "</analysis>" not in answer:
         return False, ["缺少 analysis 标签"], "format_fail"
     if "<answer>" not in answer or "</answer>" not in answer:
         return False, ["缺少 answer 标签"], "format_fail"
 
-    # 提取 analysis 内容，检查步骤数
-    analysis_match = re.search(r"<analysis>(.*?)</analysis>", answer, re.DOTALL)
+    analysis_match, answer_match, analysis_text, answer_text = _extract_sections(answer)
     if not analysis_match:
         return False, ["无法解析 analysis 内容"], "format_fail"
+    if not answer_match:
+        return False, ["无法解析 answer 内容"], "format_fail"
 
-    analysis_content = analysis_match.group(1).strip()
-    steps = [s for s in analysis_content.split("\n") if re.match(r"^\d+\.", s.strip())]
+    steps = [s.strip() for s in analysis_text.split("\n") if re.match(r"^\d+\.", s.strip())]
+    if len(steps) != 3:
+        warnings.append(f"analysis 步骤数为 {len(steps)}，建议固定为 3 步")
 
-    if len(steps) < 2 or len(steps) > 4:
-        warnings.append(f"analysis 步骤数为 {len(steps)}，建议 2-4 步")
+    if len(analysis_text) < 30:
+        warnings.append("analysis 过短，证据链可能不足")
+    if len(analysis_text) > 220:
+        warnings.append("analysis 过长，建议压缩为简短证据链")
+    if len(answer_text) == 0:
+        return False, ["answer 内容为空"], "format_fail"
+    if len(answer_text) > 40:
+        warnings.append("answer 过长，建议只保留最终结论")
 
-    # 检查高风险词汇
-    for word in HIGH_RISK_WORDS:
-        if word in answer:
-            warnings.append(f"包含高风险词汇: {word}")
+    for pattern in META_REASONING_PATTERNS:
+        if re.search(pattern, analysis_text):
+            warnings.append("analysis 含有元推理或过程废话")
+            break
 
-    # 检查上下文相关的风险（配合数字的精确表达）
-    for pattern in CONTEXTUAL_RISK_PATTERNS:
-        if re.search(pattern, answer):
-            warnings.append(f"包含高风险表达: 疑似编造精确数值")
+    warnings.extend(_find_direct_risks(answer_text))
+    warnings.extend(_find_direct_risks(analysis_text))
 
-    # 按问题类型做专项检查
-    answer_match = re.search(r"<answer>(.*?)</answer>", answer, re.DOTALL)
-    if answer_match:
-        answer_text = answer_match.group(1)
+    if question_type == "counting":
+        if not re.search(r"\d+|零|一|二|三|四|五|六|七|八|九|十|约|大约|无法确认|不确定", answer_text):
+            warnings.append("计数题答案中没有数量或不确定表达")
 
-        if question_type == "counting":
-            # 计数题需要有数字或不确定表达
-            if not re.search(r"\d+|约|估计|不确定|无法确认", answer_text):
-                warnings.append("计数题答案中没有数量或估计表达")
+    if question_type in ["location", "spatial_relation"]:
+        if not any(word in answer_text or word in analysis_text for word in LOCATION_WORDS):
+            warnings.append("位置/空间关系题缺少方位或关系表达")
 
-        if question_type in ["location", "spatial_relation"]:
-            # 位置题需要有方位表达
-            location_words = ["左", "右", "上", "下", "中", "侧", "部", "中央", "相邻", "附近", "之间", "旁"]
-            if not any(w in answer_text for w in location_words):
-                warnings.append("位置/空间关系题答案中没有方位或关系表达")
+    if question_type == "existence":
+        if not re.search(r"有|没有|存在|不存在|可见|不可见", answer_text):
+            warnings.append("存在性问题答案不够直接")
 
-    # 判断是否通过
-    has_high_risk = any("高风险词汇" in w for w in warnings)
-    is_pass = not has_high_risk
-    auto_label = "pass" if is_pass else "warning"
+    if question_type == "scene":
+        if len(answer_text) > 20:
+            warnings.append("场景题答案偏长，建议压缩为场景类别")
 
-    return is_pass, warnings, auto_label
+    has_blocking_warning = any(
+        "高风险词汇" in warning
+        or "疑似精确数值" in warning
+        or "格式" in warning
+        for warning in warnings
+    )
+    is_valid = not has_blocking_warning
+    auto_label = "pass" if is_valid else "warning"
+    return is_valid, warnings, auto_label
