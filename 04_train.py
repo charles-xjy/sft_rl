@@ -149,9 +149,9 @@ trainer = SFTTrainer(
         per_device_eval_batch_size  = 2,    # 验证时一次喂几条（不反传，可比训练大些）
 
         # ---------- 训练时长 ----------
-        num_train_epochs = 2,               # 过几遍数据。~3700 条偏小，从 2 起，看 val loss 再加到 3
+        num_train_epochs = 1,               # 过几遍数据。~3700 条偏小，从 2 起，看 val loss 再加到 3
         # max_steps = 30,                   # 取消注释 → 覆盖 epochs，只跑 30 步快速冒烟
-        warmup_steps = 5,                   # 开头几步学习率从 0 线性升到设定值，避免一上来就乱跳
+        warmup_steps = 20,                   # 开头几步学习率从 0 线性升到设定值，避免一上来就乱跳
 
         # ---------- 学习率 ----------
         learning_rate = 2e-4,               # LoRA 标准值；全参微调才用 1e-5 量级，LoRA 给小了几乎不学
@@ -164,7 +164,7 @@ trainer = SFTTrainer(
 
         # ---------- 验证：定期在 val 集上算 loss ----------
         eval_strategy = "steps",            # 按步数触发验证（另有 "epoch" / "no"）
-        eval_steps = 50,                    # 每 50 步在验证集上评一次，画出 val loss 曲线
+        eval_steps = 10,                    # 每 50 步在验证集上评一次，画出 val loss 曲线
 
         # ---------- 日志 / 保存 ----------
         logging_steps = 5,                  # 每 5 步打一次 train loss（也推给 SwanLab）
