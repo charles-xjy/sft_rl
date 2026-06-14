@@ -18,13 +18,14 @@ from trl import SFTTrainer, SFTConfig
 from swanlab.integration.transformers import SwanLabCallback   # ← SwanLab 可视化
 
 # 基座与路径（按需修改）
-MODEL_NAME = "unsloth/Qwen3-VL-8B-Instruct-unsloth-bnb-4bit"  # 官方 4bit 量化版，显存友好
+# ModelScope 下载到本地的原版 Qwen3-VL-2B-Instruct（非量化）；用绝对路径，避免联网拉 HF
+MODEL_NAME = "/home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"
 TRAIN_FILE = "outputs/sft/train.jsonl"
 OUTPUT_DIR = "outputs/qwen3vl-sft-lora"
 
 # SwanLab 看板的项目 / 实验名（按需修改）
 SWANLAB_PROJECT = "qwen3vl-rs-sft"
-SWANLAB_EXPERIMENT = "qwen3vl-8b-lora"
+SWANLAB_EXPERIMENT = "qwen3vl-2b-lora"
 
 
 # ============================================================================
@@ -32,16 +33,18 @@ SWANLAB_EXPERIMENT = "qwen3vl-8b-lora"
 # ============================================================================
 # 下面的训练循环用的是 trl 的 SFTTrainer（标准接口，看不出 unsloth）。unsloth 不替换
 # 训练循环，它替换的是「被训练的 model 本身」：FastVisionModel.from_pretrained 返回的不是
-# 普通 HF 模型，而是在加载时做了「手术」的版本——
-#   1) 4bit 量化（配合 ...-bnb-4bit 仓库 + load_in_4bit）：权重从 ~16GB 压到 ~5GB，8B 才能单卡训；
-#   2) 把注意力 / MLP / LayerNorm / RoPE / 交叉熵换成 unsloth 手写的 Triton 融合内核：
+# 普通 HF 模型，而是在加载时做了「手术」的版本——即便不量化，仍有两处省显存/提速：
+#   1) 把注意力 / MLP / LayerNorm / RoPE / 交叉熵换成 unsloth 手写的 Triton 融合内核：
 #      更少的显存读写 → 更快；融合交叉熵不实体化完整 logits 大张量（VLM vocab 很大，省得多）；
-#   3) use_gradient_checkpointing="unsloth"：比 HF 默认的梯度检查点更省激活显存（约 -30%）。
+#   2) use_gradient_checkpointing="unsloth"：比 HF 默认的梯度检查点更省激活显存（约 -30%）。
+# （如果开 load_in_4bit=True 还会再多一层「权重 4bit 量化」省显存，那就是 QLoRA；这里我们要
+#   普通 LoRA，所以关掉，基座保持 16bit。）
 # 之后这个 model 交给 trl 照常训——同一份 SFTTrainer 代码，喂普通模型就是普通速度/显存，
 # 喂这个 model 就快、就省。加载时会打印 "Unsloth ...: Fast Qwen3-VL patching" banner 作证。
 model, tokenizer = FastVisionModel.from_pretrained(
     MODEL_NAME,
-    load_in_4bit = True,                     # 4bit 量化，8B 单卡可训；显存充裕可设 False 走 16bit
+    load_in_4bit = False,                    # 不量化 → 16bit 基座 + LoRA（普通 LoRA，不是 QLoRA）
+    load_in_8bit = False,                    # 同理不走 8bit
     use_gradient_checkpointing = "unsloth",  # Unsloth 省显存的梯度检查点实现，几乎必开
 )
 
