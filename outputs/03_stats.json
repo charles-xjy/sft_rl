@@ -1,14 +1,16 @@
 {
   "phase1_completed": 1000,
   "phase2_completed": 1000,
-  "phase3_completed": 5000,
-  "phase2_questions_generated": 5000,
-  "phase3_auto_pass": 4998,
-  "dataset_SECOND": 2500,
-  "type_attribute": 1009,
-  "type_existence": 1010,
-  "type_location": 992,
-  "type_spatial_relation": 1000,
-  "dataset_LEVIR-CD+": 2500,
-  "type_counting": 989
+  "phase3_completed": 3795,
+  "phase2_questions_generated": 3795,
+  "phase3_auto_pass": 3517,
+  "dataset_SECOND": 3174,
+  "type_existence": 1570,
+  "type_location": 809,
+  "dataset_LEVIR-CD+": 621,
+  "type_attribute": 421,
+  "type_spatial_relation": 662,
+  "type_counting": 168,
+  "type_ambiguous": 85,
+  "type_unanswerable": 80
 }

@@ -407,12 +407,15 @@ print(f'Pass: {pass_count}/{total} ({pass_count/total*100:.1f}%)')
 
 ```bash
 # ======== Step 0. 起教师模型（vLLM，OpenAI 兼容口）。详见“启动vLLM服务”节 ========
-CUDA_VISIBLE_DEVICES=1,2 vllm serve Qwen/Qwen3-VL-32B-Instruct \
-  --trust-remote-code --dtype bfloat16 \
-  --mm-encoder-tp-mode data --mm-processor-cache-type shm \
-  --reasoning-parser qwen3 --enable-prefix-caching \
-  --gpu-memory-utilization 0.9 --max-model-len 8192 \
-  --tensor-parallel-size 2 --port 8001 &
+CUDA_VISIBLE_DEVICES=1,2 \
+vllm serve Qwen/Qwen3.5-27B \
+  --trust-remote-code \
+  --dtype bfloat16 \
+  --tensor-parallel-size 2 \
+  --gpu-memory-utilization 0.9 \
+  --max-model-len 8192 \
+  --enable-prefix-caching \
+  --port 8001
 
 # ======== Step 1. 生成数据（Phase1→2→3 并行）。结束后自动跑一次体检 ========
 # --num-images：本次抽多少张图（不是样本数）。
