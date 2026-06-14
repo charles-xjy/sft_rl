@@ -1,14 +1,12 @@
-#!/usr/bin/env python3
 """
-Run the three-stage pipeline with staged parallelism.
+三阶段数据生成引擎(分阶段并行)。
 
-Phase 1 emits descriptions.
-Phase 2 starts as soon as a description is ready.
-Phase 3 waits until Phase 1 and Phase 2 are both fully complete,
-then runs over all pending questions.
-Overall concurrent API requests are capped by --max-concurrency.
+Phase 1 产出图像描述;Phase 2 一旦某图描述就绪即开始出题;
+Phase 3 等 Phase 1/2 全部完成后,对所有待答问题统一生成答案。
+整体并发请求数由 max_concurrency 控制。
+
+入口脚本 `01_generate.py` 解析命令行后调用 `generate(args)`。
 """
-import argparse
 import hashlib
 import json
 import threading
@@ -16,7 +14,7 @@ from collections import defaultdict, deque
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime
 from pathlib import Path
-from typing import Deque, Dict, List, Tuple
+from typing import Deque, Dict, List
 
 from tqdm import tqdm
 
@@ -36,7 +34,7 @@ from src.scanner import (
     scan_all_datasets,
     stratified_sample,
 )
-from src.validator import validate_answer
+from src.validator import salvage_answer, validate_answer
 from src.vlm_client import VLMClient
 
 
@@ -208,6 +206,7 @@ def phase3_task(task: dict, get_client, direct_ratio: float = 0.3, seed: int = 4
         max_tokens=2048,
         temperature=0.3,
     )
+    answer, salvaged = salvage_answer(answer, expect_analysis=(mode == "analysis"))
     is_valid, warnings, auto_label = validate_answer(
         answer, task["question_type"], expect_analysis=(mode == "analysis")
     )
@@ -226,6 +225,7 @@ def phase3_task(task: dict, get_client, direct_ratio: float = 0.3, seed: int = 4
                 "is_valid": is_valid,
                 "warnings": warnings,
                 "label": auto_label,
+                "salvaged": salvaged,
             },
             "generated_at": datetime.now().isoformat(),
         },
@@ -268,42 +268,11 @@ def build_relevant_answer_keys(processed_answer_keys: set, sampled_image_paths: 
     return relevant
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Run the 3-stage pipeline with staged parallelism")
-    parser.add_argument("--dataset-root", type=str, default="dataset", help="数据集根目录")
-    parser.add_argument("--datasets", type=str, default="LEVIR-CD+,SECOND", help="要处理的数据集，逗号分隔")
-    parser.add_argument("--num-images", type=int, default=None, help="全局随机采样总数；传入后优先于 --samples-per-dataset")
-    parser.add_argument(
-        "--samples-per-dataset",
-        type=str,
-        default="LEVIR-CD+=500,SECOND=500",
-        help=(
-            "每个数据集采样数量。两种语法："
-            "(1) 单一整数 '10' — 每个数据集都抽 10 张；"
-            "(2) 按数据集指定 'LEVIR-CD+=500,SECOND=500' — 仅抽指定的"
-        ),
-    )
-    parser.add_argument(
-        "--ebd-per-disaster",
-        type=int,
-        default=None,
-        help="EBD 按 7 种灾害子目录各抽 N 张；启用后会覆盖 --samples-per-dataset 里 EBD 的值",
-    )
-    parser.add_argument("--num-questions", type=int, default=5, help="每张图最多生成问题数量")
-    parser.add_argument("--min-questions", type=int, default=2, help="每张图最少生成问题数量")
-    parser.add_argument("--max-concurrency", type=int, default=24, help="整体最大并发请求数")
-    parser.add_argument("--model", type=str, default=None, help="模型名称")
-    parser.add_argument("--base-url", type=str, default="http://10.129.107.145:8001/v1", help="vLLM 服务地址")
-    parser.add_argument("--retries", type=int, default=3, help="失败重试次数")
-    parser.add_argument("--seed", type=int, default=42, help="随机种子")
-    parser.add_argument("--direct-ratio", type=float, default=0.3,
-                        help="不带 analysis 的直答样本占比(打散固定起手式,缓解过度模板化)")
-    parser.add_argument("--output-dir", type=str, default="outputs", help="输出目录")
-    parser.add_argument("--manifest", type=str, default=None, help="样本清单文件路径；默认 outputs/sample_manifest.jsonl")
-    parser.add_argument("--refresh-manifest", action="store_true", help="忽略已有 manifest，重新采样并覆盖")
-    parser.add_argument("--no-health-check", action="store_true", help="跳过生成结束后的自动数据体检")
-    args = parser.parse_args()
+def generate(args) -> Path:
+    """运行三阶段生成流水线。args 为命令行解析后的 Namespace。
 
+    返回最终答案文件路径(outputs/03_answers_sft.jsonl),供上层做体检。
+    """
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     desc_path = output_dir / "01_descriptions.jsonl"
@@ -569,29 +538,4 @@ def main():
 
     print_summary(stats, desc_path, question_path, answer_path)
     print(f"stats_file: {stats_path}")
-
-    if not args.no_health_check and answer_path.exists():
-        run_health_check(answer_path)
-
-
-def run_health_check(answer_path: Path) -> None:
-    """生成结束后自动跑一次只读体检(报告 + 红线告警)。不自动降采样。"""
-    import subprocess
-    import sys
-
-    script = Path(__file__).parent / "scratch" / "learn" / "02_template_health.py"
-    if not script.exists():
-        print(f"[health-check] 跳过: 未找到 {script}")
-        return
-    print("\n" + "=" * 80)
-    print("自动体检(只读)。降采样请在人工抽检后手动运行:")
-    print(f"  python {script} {answer_path} --rebalance --out sft_data/release.jsonl")
-    print("=" * 80, flush=True)  # flush 确保提示在子进程报告之前打印
-    # 体检触发红线会以退出码 1 返回,这里不让它中断流水线,仅作提示
-    rc = subprocess.run([sys.executable, str(script), str(answer_path)]).returncode
-    if rc == 1:
-        print("\n[health-check] [!] 体检触发红线,请按上方报告处理后再发布(详见报告)。")
-
-
-if __name__ == "__main__":
-    main()
+    return answer_path

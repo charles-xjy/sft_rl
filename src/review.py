@@ -1,8 +1,9 @@
-#!/usr/bin/env python3
 """
-Local review server for manual approve/reject of generated VQA samples.
+本地人工审批服务:对生成的 VQA 样本逐条通过/不通过。
+
+入口脚本 `02_review.py` 解析命令行后调用 `serve(args)`。
+前端静态资源在项目根目录的 review/ui/ 下。
 """
-import argparse
 import json
 import mimetypes
 from datetime import datetime
@@ -11,8 +12,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+# 项目根目录(src/ 的上一级),用于定位 review/ui 静态资源。
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-def load_samples(input_path: Path) -> list[dict]:
+
+def load_samples(input_path: Path) -> list:
     samples = []
     if not input_path.exists():
         return samples
@@ -39,8 +43,8 @@ def load_samples(input_path: Path) -> list[dict]:
     return samples
 
 
-def load_reviews(review_path: Path) -> dict[str, dict]:
-    reviews: dict[str, dict] = {}
+def load_reviews(review_path: Path) -> dict:
+    reviews: dict = {}
     if not review_path.exists():
         return reviews
     with open(review_path, "r", encoding="utf-8") as f:
@@ -53,18 +57,18 @@ def load_reviews(review_path: Path) -> dict[str, dict]:
     return reviews
 
 
-def persist_reviews(review_path: Path, reviews: dict[str, dict]) -> None:
+def persist_reviews(review_path: Path, reviews: dict) -> None:
     review_path.parent.mkdir(parents=True, exist_ok=True)
     with open(review_path, "w", encoding="utf-8") as f:
         for review in reviews.values():
             f.write(json.dumps(review, ensure_ascii=False) + "\n")
 
 
-def make_handler(samples: list[dict], review_path: Path, static_dir: Path):
+def make_handler(samples: list, review_path: Path, static_dir: Path):
     reviews = load_reviews(review_path)
 
     class ReviewHandler(BaseHTTPRequestHandler):
-        def _send_json(self, payload: dict | list, status: int = 200) -> None:
+        def _send_json(self, payload, status: int = 200) -> None:
             data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -72,7 +76,7 @@ def make_handler(samples: list[dict], review_path: Path, static_dir: Path):
             self.end_headers()
             self.wfile.write(data)
 
-        def _send_file(self, path: Path, content_type: str | None = None) -> None:
+        def _send_file(self, path: Path, content_type=None) -> None:
             if not path.exists() or not path.is_file():
                 self.send_error(HTTPStatus.NOT_FOUND, "File not found")
                 return
@@ -170,17 +174,11 @@ def make_handler(samples: list[dict], review_path: Path, static_dir: Path):
     return ReviewHandler
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Start local review UI")
-    parser.add_argument("--input", default="outputs/03_answers_sft.jsonl", help="SFT JSONL file to review")
-    parser.add_argument("--reviews", default="outputs/manual_reviews.jsonl", help="Review output JSONL path")
-    parser.add_argument("--host", default="127.0.0.1", help="Host to bind")
-    parser.add_argument("--port", type=int, default=8008, help="Port to bind")
-    args = parser.parse_args()
-
+def serve(args) -> None:
+    """启动本地审批服务。args 为命令行解析后的 Namespace。"""
     input_path = Path(args.input)
     review_path = Path(args.reviews)
-    static_dir = Path(__file__).parent / "review" / "ui"
+    static_dir = PROJECT_ROOT / "review" / "ui"
 
     samples = load_samples(input_path)
     handler = make_handler(samples, review_path, static_dir)
@@ -190,7 +188,3 @@ def main():
     print(f"review_file: {review_path}")
     print(f"url: http://{args.host}:{args.port}")
     server.serve_forever()
-
-
-if __name__ == "__main__":
-    main()

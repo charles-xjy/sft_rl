@@ -103,6 +103,39 @@ def _find_direct_risks(text: str) -> List[str]:
     return warnings
 
 
+def salvage_answer(answer: str, expect_analysis: bool = True) -> Tuple[str, bool]:
+    """
+    容错补标签。
+
+    模型对超短答案(existence 的"是")倾向答完即发结束符(EOS),漏掉收尾的
+    `</answer>`(偶尔 analysis 模式连 `</analysis>` 也一起漏)。这类样本答案内容
+    本身完整正确,仅缺收尾标签,会被 validate_answer 误判为 format_fail。此函数把
+    缺失的收尾标签补回,救回绝大多数 format_fail。
+
+    只在 `<answer>` 开标签存在时补救;连开标签都没有的属真正格式错误,原样返回。
+
+    Returns:
+        (salvaged_answer, was_salvaged)
+    """
+    if "<answer>" not in answer:
+        return answer, False
+
+    text = answer.rstrip()
+    salvaged = False
+
+    # analysis 模式:<analysis> 开了没关,且其后直接进入 <answer> —— 在 <answer> 前补 </analysis>。
+    if expect_analysis and "<analysis>" in text and "</analysis>" not in text:
+        text = text.replace("<answer>", "</analysis>\n<answer>", 1)
+        salvaged = True
+
+    # 缺收尾 </answer>:补在末尾。
+    if "</answer>" not in text:
+        text = text + "</answer>"
+        salvaged = True
+
+    return (text, True) if salvaged else (answer, False)
+
+
 def validate_answer(
     answer: str, question_type: str, expect_analysis: bool = True
 ) -> Tuple[bool, List[str], str]:

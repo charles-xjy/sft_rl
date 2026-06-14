@@ -1,30 +1,16 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""学习/治理脚本 02:SFT 数据体检 + 按配比降采样。
+"""
+SFT 数据体检 + 按配比降采样。
 
 把"是否过度模板化、配比是否失衡"量化出来,作为数据发布前的最后一道闸。
-体检只读;加 --rebalance 时按目标配比降采样产出发布集。
+`report()` 只读,返回是否触发红线;`rebalance()` 按目标配比降采样产出发布集。
 
-用法:
-    # 体检(只读,出报告 + 红线告警)
-    python scratch/learn/02_template_health.py outputs/03_answers_sft.jsonl
-
-    # 降采样产出发布集(主要把 counting 压到目标比例)
-    python scratch/learn/02_template_health.py outputs/03_answers_sft.jsonl \\
-        --rebalance --out sft_data/release.jsonl
-
-退出码:体检发现红线(开头占比超阈值)时返回 1,便于接入 CI/流水线门禁。
-
-只依赖标准库。
+被 `01_generate.py`(生成后自动体检)与 `03_convert.py` 复用;只依赖标准库。
 """
-
-import argparse
 import json
 import math
 import random
 import re
 import statistics
-import sys
 from collections import Counter, defaultdict
 
 # 目标 question_type 配比(与 prompts.py 的 Phase2 建议一致)
@@ -57,7 +43,7 @@ def load(path):
     return rows
 
 
-def report(rows, top_n, threshold):
+def report(rows, top_n=12, threshold=0.20):
     """打印体检报告,返回是否触发红线(True=有问题)。"""
     n = len(rows)
     ans_open = Counter()
@@ -188,8 +174,8 @@ def _print_open(counter, total, top_n, threshold):
     return red
 
 
-def rebalance(rows, out_path, seed):
-    """按 TARGET_DIST 对主类型降采样;unanswerable 全保留。"""
+def rebalance_rows(rows, seed=42):
+    """按 TARGET_DIST 对主类型降采样;unanswerable/ambiguous 全保留。返回挑选后的样本列表。"""
     rng = random.Random(seed)
     buckets = defaultdict(list)
     for o in rows:
@@ -218,32 +204,16 @@ def rebalance(rows, out_path, seed):
             print(f"  {t:16s} 可用 {len(kept):5d} -> 取 {len(kept):5d} (全保留)")
 
     rng.shuffle(selected)
+    return selected
+
+
+def rebalance(rows, out_path, seed=42):
+    """按 TARGET_DIST 降采样并写入 out_path(发布集)。"""
+    selected = rebalance_rows(rows, seed)
     import os
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         for o in selected:
             f.write(json.dumps(o, ensure_ascii=False) + "\n")
     print(f"\n[done] 发布集 {len(selected)} 条 -> {out_path}")
-
-
-def main():
-    p = argparse.ArgumentParser(description="SFT 数据体检 + 按配比降采样")
-    p.add_argument("data", help="输入 jsonl(如 outputs/03_answers_sft.jsonl)")
-    p.add_argument("--top-n", type=int, default=12, help="开头分布展示条数")
-    p.add_argument("--threshold", type=float, default=0.20, help="单一开头占比红线")
-    p.add_argument("--rebalance", action="store_true", help="按目标配比降采样产出发布集")
-    p.add_argument("--out", default="sft_data/release.jsonl", help="降采样输出路径")
-    p.add_argument("--seed", type=int, default=42)
-    args = p.parse_args()
-
-    rows = load(args.data)
-    red = report(rows, args.top_n, args.threshold)
-
-    if args.rebalance:
-        rebalance(rows, args.out, args.seed)
-
-    sys.exit(1 if red else 0)
-
-
-if __name__ == "__main__":
-    main()
+    return selected

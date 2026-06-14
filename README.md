@@ -25,47 +25,51 @@
 
 ```text
 sft_rl/
-├── src/                        # 核心模块
+├── 01_generate.py              # 入口①：生成基础数据 + 自动质量分析报告
+├── 02_review.py                # 入口②：人工审批前端
+├── 03_convert.py               # 入口③：转 Unsloth 格式 + 过滤未过质检
+├── 04_train.py                 # 入口④：Qwen3-VL 视觉 SFT（扁平脚本，照搬 Unsloth notebook，仅 Linux+GPU）
+│
+├── src/                        # 核心功能模块（01~03 入口是薄壳，逻辑在这里；04 刻意扁平不入 src）
 │   ├── scanner.py             # 图像扫描与分层采样
 │   ├── vlm_client.py          # VLM 客户端封装（带重试）
-│   ├── validator.py           # 自动质检规则（analysis/direct 双模式）
+│   ├── validator.py           # 自动质检规则 + 容错补标签（analysis/direct 双模式）
 │   ├── sampling.py            # 问题类型软配额调度（控制分布）
-│   └── prompts.py             # 所有 Prompt 模板集中管理
-│
-├── 01_generate_desc.py         # Phase 1: 生成受控图像描述
-├── 02_generate_questions.py    # Phase 2: 生成多样化问题（软配额）
-├── 03_generate_answers.py      # Phase 3: 生成答案（analysis + direct 混合）
-├── run_parallel_pipeline.py    # 三阶段并行入口（结束自动体检）
+│   ├── prompts.py             # 所有 Prompt 模板集中管理
+│   ├── generation.py          # 三阶段并行生成引擎（描述→出题→答案）
+│   ├── health.py              # 数据体检 + 按配比降采样
+│   ├── convert.py             # 转 Unsloth 训练集 + 质检过滤 + 路径重映射
+│   └── review.py             # 本地人工审批服务
 │
 ├── scratch/learn/              # 学习/治理脚本
-│   ├── 01_inspect_template.py  # 查看 chat template 渲染结果
-│   └── 02_template_health.py   # 数据体检 + 按配比降采样
+│   └── 01_inspect_template.py  # 查看 chat template 渲染结果
 │
-├── review/                     # 人工审阅工具
-│   ├── ../review_server.py     # 本地审阅服务（项目根目录）
-│   └── ui/                     # 审阅前端
+├── review/ui/                  # 人工审批前端静态资源（被 02_review.py 使用）
 │
 ├── outputs/                    # 各阶段输出
 │   ├── 01_descriptions.jsonl   # 图像描述结果
 │   ├── 02_questions.jsonl      # 问题生成结果
 │   ├── 03_answers_sft.jsonl    # 候选 SFT 数据
-│   └── sample_manifest.jsonl   # 本次抽样清单（可复现/续跑）
+│   ├── sample_manifest.jsonl   # 本次抽样清单（可复现/续跑）
+│   └── sft/                     # 03_convert.py 产出的 train.jsonl / val.jsonl
 │
 ├── README.md / RUN_GUIDE.md    # 设计说明 / 运行指南
-└── requirements.txt            # 依赖列表
+├── requirements.txt            # 数据生成依赖
+└── requirements-train.txt      # 训练依赖（仅 Linux+GPU）
 ```
 
-### 三阶段独立设计
+### 四个入口、一条主线
 
-每个阶段都可以独立运行、调试，支持断点续传：
+主目录只有 4 个入口脚本，按数据流先后排列；所有可复用逻辑都在 `src/`：
 
-| 阶段 | 脚本 | 输入 | 输出 |
-|------|------|------|------|
-| 1 | `01_generate_desc.py` | 遥感图像 | 受控图像描述 |
-| 2 | `02_generate_questions.py` | 图像描述 | 6类VQA问题（含 unanswerable） |
-| 3 | `03_generate_answers.py` | 图像+问题（描述辅助） | SFT数据（analysis + direct 混合） |
+| 入口 | 职责 | 输入 → 输出 |
+|------|------|------|
+| `01_generate.py` | 三阶段生成 + 自动体检报告 | 遥感图像 → `outputs/03_answers_sft.jsonl` |
+| `02_review.py` | 人工审批（发布前必经） | SFT 数据 → `outputs/manual_reviews.jsonl` |
+| `03_convert.py` | 转 Unsloth 格式 + 过滤未过质检 | 答案 jsonl → `outputs/sft/train.jsonl`·`val.jsonl` |
+| `04_train.py` | Qwen3-VL 视觉 SFT（LoRA） | 训练集 → LoRA 适配器 |
 
-> 详细使用说明请参考 `RUN_GUIDE.md`
+> 生成阶段内部仍是三阶段（描述→出题→答案）并行推进，逻辑在 `src/generation.py`；断点续传按图像绝对路径识别。详细使用说明见 `RUN_GUIDE.md`。
 
 ## 训练分工
 
@@ -323,12 +327,12 @@ comment
 
 ### 数据体检与降采样
 
-发布前用 `scratch/learn/02_template_health.py` 做一次自动体检，把"是否过度模板化、配比是否失衡"量化出来，并按目标配比降采样生成发布集。
+体检逻辑在 `src/health.py`。`01_generate.py` 生成结束后会**自动调用它跑一次只读体检**（除非 `--no-health-check`），把"是否过度模板化、配比是否失衡"量化出来。发布前还可按目标配比降采样生成发布集（在 `03_convert.py` 里以 `--rebalance` 触发）。
 
-**体检（只读，给报告 + 红线告警）：**
+**体检（只读，给报告 + 红线告警）：** 随 `01_generate.py` 自动产出；也可单独调用：
 
 ```bash
-python scratch/learn/02_template_health.py outputs/03_answers_sft.jsonl
+python -c "from src import health; health.report(health.load('outputs/03_answers_sft.jsonl'))"
 ```
 
 报告分**问题侧**（分布塌缩，最危险）和**答案侧**（过度模板化）两部分：
@@ -348,23 +352,22 @@ python scratch/learn/02_template_health.py outputs/03_answers_sft.jsonl
 
 任一红线触发时脚本以**退出码 1** 返回，可直接接 CI/流水线门禁。
 
-**降采样（按目标配比产出发布集）：**
+**降采样（按目标配比）：** 在转换阶段用 `03_convert.py --rebalance` 触发：
 
 ```bash
-python scratch/learn/02_template_health.py outputs/03_answers_sft.jsonl \
-    --rebalance --out sft_data/release.jsonl
+python 03_convert.py --rebalance --image-root /your/abs/path/to/dataset
 ```
 
 按目标配比（默认 existence 35% / location 25% / spatial 20% / attribute 15% / counting 5%）对各 `question_type` 桶降采样，**主要用于把 counting 压到目标比例**，避免高噪声计数题稀释主训练信号。这是 prompt 配比建议之外**真正可靠**的比例控制手段。
 
 #### 本项目提供的人工审批工具
 
-为支撑上述抽样人工质检，仓库内置了一个轻量本地审阅工具 `review_server.py`，是流水线的最后一环、也是数据进入 SFT 训练前**必须**走过的一步——自动质检只能过滤格式与硬规则错误，对幻觉、错答、计数误差等只能依赖人工判定。
+为支撑上述抽样人工质检，仓库内置了一个轻量本地审阅工具 `02_review.py`（逻辑在 `src/review.py`），是流水线的最后一环、也是数据进入 SFT 训练前**必须**走过的一步——自动质检只能过滤格式与硬规则错误，对幻觉、错答、计数误差等只能依赖人工判定。
 
 快速启动：
 
 ```bash
-python review_server.py
+python 02_review.py
 # 浏览器打开 http://127.0.0.1:8008
 ```
 
@@ -553,28 +556,24 @@ CUDA_VISIBLE_DEVICES=0,1 vllm serve Qwen/Qwen3-VL-32B-Instruct \
   --tensor-parallel-size 2 --port 8001
 ```
 
-### 3. 按顺序运行三阶段
+### 3. 四步主线
 
 ```bash
-# Phase 1: 生成图像描述
-python 01_generate_desc.py --num-images 100
+# ① 生成基础数据（三阶段并行）+ 结束后自动体检报告
+python 01_generate.py --num-images 100
 
-# Phase 2: 生成多样化问题（每图 2-5 个，按图像内容自适应）
-python 02_generate_questions.py --num-questions 5 --min-questions 2
+# ② 人工审批（浏览器打开 http://127.0.0.1:8008，发布前必经）
+python 02_review.py
 
-# Phase 3: 生成带分析的答案（最终SFT）
-python 03_generate_answers.py
+# ③ 转 Unsloth 训练集 + 过滤未过质检（可选 --rebalance 降采样）
+#    在 Linux 训练机上跑，--image-root 传图片真实根目录
+python 03_convert.py --image-root /your/abs/path/to/dataset --check-images
+
+# ④ Qwen3-VL 视觉 SFT（仅 Linux+GPU）。超参直接改 04_train.py 顶部各 section 的常量
+python 04_train.py
 ```
 
-所有脚本都支持**断点续传**，中断后重新运行即可自动跳过已处理内容。
-
-### 4. 流水线并行（推荐）
-
-如果希望三阶段并行推进，使用 `run_parallel_pipeline.py`，它直接走默认配置即可：
-
-```bash
-python run_parallel_pipeline.py
-```
+`01_generate.py` 内部三阶段并行推进，支持**断点续传**（按图像绝对路径识别，中断后重跑自动跳过已处理内容）；结束后自动跑一次只读体检（`--no-health-check` 可关）。
 
 **默认采样**：
 
@@ -586,31 +585,25 @@ python run_parallel_pipeline.py
 
 每张图像生成 **2-5 个 VQA 问题**，由模型根据图像内容自适应：内容简单的图只生成 2 个，内容丰富的图最多 5 个；解析后超过 5 个会硬截断，避免凑数。预计最终生成 **2000–5000 个 SFT 样本**。
 
-> 默认不启用 EBD（灾后场景）。如需纳入 EBD，参考 `RUN_GUIDE.md` 中的"流水线并行运行"章节。
+> `01_generate.py` 不传 `--num-images` 时走上面的默认采样。默认不启用 EBD（灾后场景）；如需纳入 EBD，参考 `RUN_GUIDE.md` 中的"完整运行流程"章节。
 
 详细参数说明请查看 `RUN_GUIDE.md`。
 
 ---
 
-## 🧪 流水线测试
+## 🧪 小规模冒烟
 
-在批量运行前，建议先用测试脚本验证整条流水线：
+批量运行前，先用极小样本量把整条链路走通：
 
 ```bash
-# 自动寻找测试图片
-python test_pipeline.py
+# 生成阶段：每个数据集各抽 2 张，验证 VLM 连接 / 三阶段 / 自动质检 / 体检报告
+python 01_generate.py --samples-per-dataset 2
 
-# 或指定图片测试
-python test_pipeline.py dataset/LEVIR-CD+/train/B/000000.png
+# 转换阶段：不依赖 GPU，验证格式转换 / 质检过滤 / 路径重映射
+python 03_convert.py --image-root /your/abs/path/to/dataset
+
+# 训练阶段：把 04_train.py 里的 `max_steps = 30` 那行取消注释，先跑几十步冒烟（仅 Linux+GPU）
+python 04_train.py
 ```
 
-**测试内容：**
-- ✅ 模块导入检查
-- ✅ VLM服务连接与模型探测
-- ✅ Phase 1: 图像描述生成
-- ✅ Phase 2: 多样化问题生成
-- ✅ Phase 3: 带分析过程的答案生成
-- ✅ 自动质检规则验证
-- ✅ 最终SFT格式预览
-
-测试通过后，再进行批量数据生成！
+走通后再放大 `--num-images`（生成）/ 把 `max_steps` 注释回去用 `num_train_epochs`（训练）正式跑。

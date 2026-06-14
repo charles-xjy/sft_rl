@@ -1,0 +1,17 @@
+# Qwen3-VL 视觉 SFT 训练依赖(仅 Linux + NVIDIA GPU)。
+# 与根目录 requirements.txt(数据生成)分开;训练机单独装。
+#
+# 推荐:先按 https://unsloth.ai/docs 的安装指引装好匹配的 torch+CUDA,
+# 再 pip install 下面这些。版本范围按 Unsloth 2026 中的兼容区间给,
+# 实际以 unsloth 官方安装命令为准(它会顺带拉对应的 trl/transformers)。
+
+unsloth>=2026.1.1
+unsloth_zoo>=2026.1.1
+torch>=2.4.0
+transformers>=4.49.0
+trl>=0.15.0
+peft>=0.14.0
+accelerate>=1.2.0
+bitsandbytes>=0.45.0
+datasets>=3.2.0
+pillow>=10.0.0
