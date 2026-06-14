@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from src.prompts import ANSWER_GENERATION_PROMPT, DESCRIPTION_PROMPT, QUESTION_GENERATION_PROMPT
+from src.sampling import assign_question_types, format_plan
 from src.validator import validate_answer
 from src.vlm_client import VLMClient
 
@@ -95,9 +96,9 @@ except Exception as e:
 
 print("\n[4/6] Phase 2: 生成问题...")
 try:
+    assigned = assign_question_types(str(test_image), 2, 5, seed=42)
     question_prompt = QUESTION_GENERATION_PROMPT.format(
-        num_questions=5,
-        min_questions=2,
+        assigned_plan=format_plan(assigned),
         description=description,
     )
     response = vlm.call(
