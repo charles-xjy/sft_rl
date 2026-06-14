@@ -84,6 +84,7 @@ def parse_questions_response(response: str) -> List[Dict[str, str]]:
 def append_jsonl(path: Path, record: dict, lock: threading.Lock) -> None:
     """Append one JSON object to a JSONL file."""
     with lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
@@ -562,6 +563,7 @@ def main():
                 p3_bar.refresh()
                 drain_queue(executor)
 
+    stats_path.parent.mkdir(parents=True, exist_ok=True)
     with open(stats_path, "w", encoding="utf-8") as f:
         json.dump(dict(stats), f, ensure_ascii=False, indent=2)
 
