@@ -1,0 +1,14 @@
+{
+  "phase1_completed": 1000,
+  "phase2_completed": 1000,
+  "phase3_completed": 5000,
+  "phase2_questions_generated": 5000,
+  "phase3_auto_pass": 4998,
+  "dataset_SECOND": 2500,
+  "type_attribute": 1009,
+  "type_existence": 1010,
+  "type_location": 992,
+  "type_spatial_relation": 1000,
+  "dataset_LEVIR-CD+": 2500,
+  "type_counting": 989
+}
