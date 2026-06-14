@@ -6,7 +6,9 @@
 3. [参数详解](#参数详解)
 4. [常见问题排查](#常见问题排查)
 5. [高级用法](#高级用法)
-6. [人工审批前端](#人工审批前端)
+6. [完整运行流程（从零到训练集）](#完整运行流程从零到训练集)
+7. [数据体检与降采样](#数据体检与降采样)
+8. [人工审批前端](#人工审批前端)
 
 ---
 
@@ -159,7 +161,7 @@ python 01_generate_desc.py \
 
 ### Phase 2: 生成多样化问题
 
-**作用**：基于图像描述生成8类VQA问题，覆盖存在性、属性、位置、空间关系等。
+**作用**：基于图像描述生成 7 类 VQA 问题（existence / location / spatial_relation / attribute / counting / unanswerable / ambiguous）。每张图会按**软配额**（`src/sampling.py:SCHEDULE_DIST`）分配一份"建议类型清单"注入 prompt，使全局类型比例贴近目标、不易塌缩；模型对不适合的图可跳过某类型。
 
 ```bash
 # 基础用法（使用默认输入）
@@ -194,11 +196,14 @@ python 02_generate_questions.py \
 
 ### Phase 3: 生成带分析过程的答案
 
-**作用**：生成最终的SFT训练数据，包含结构化分析过程和简洁答案。
+**作用**：生成最终的 SFT 训练数据。两种形态按 `--direct-ratio` 混合：约 70% 带 `<analysis>`（步数自适应 1-3 步），约 30% 直答只有 `<answer>`。prompt 明确**以图像为准、描述仅供参考**。
 
 ```bash
-# 基础用法
+# 基础用法（默认 direct-ratio 0.3）
 python 03_generate_answers.py
+
+# 调整直答比例（可做 0.3/0.5/0.7 的 AB 实验）
+python 03_generate_answers.py --direct-ratio 0.5
 
 # 指定输入输出
 python 03_generate_answers.py \
@@ -221,7 +226,8 @@ python 03_generate_answers.py \
   ],
   "images": ["/path/to/image.png"],
   "meta": {
-    "task_type": "vqa_with_analysis",
+    "task_type": "vqa_with_analysis",   // 直答样本为 "vqa_direct"
+    "answer_mode": "analysis",            // analysis | direct
     "question_type": "existence",
     "source_dataset": "LEVIR-CD+",
     "auto_validation": {
@@ -232,6 +238,8 @@ python 03_generate_answers.py \
   }
 }
 ```
+
+> 直答样本的 `assistant.content` 只有 `<answer>…</answer>`，没有 `<analysis>`；`meta.answer_mode` 标记每条用的是哪种模式。
 
 ---
 
@@ -262,8 +270,9 @@ python 03_generate_answers.py \
 |------|--------|------|
 | `--input` | `outputs/01_descriptions.jsonl` | Phase 1输出文件 |
 | `--output` | `outputs/02_questions.jsonl` | 输出文件路径 |
-| `--num-questions` | `5` | 每张图最多生成的问题数量（上限，超出会截断） |
-| `--min-questions` | `2` | 每张图最少需要的问题数量 |
+| `--num-questions` | `5` | 每张图问题数上限（软配额在 [min, num] 区间分配类型） |
+| `--min-questions` | `2` | 每张图问题数下限 |
+| `--seed` | `42` | 问题类型**软配额**分配的随机种子（见 `src/sampling.py`） |
 
 ### Phase 3 特有参数
 
@@ -271,6 +280,8 @@ python 03_generate_answers.py \
 |------|--------|------|
 | `--input` | `outputs/02_questions.jsonl` | Phase 2输出文件 |
 | `--output` | `outputs/03_answers_sft.jsonl` | 最终SFT输出文件 |
+| `--direct-ratio` | `0.3` | 直答（无 analysis）样本占比，打散固定起手式 |
+| `--seed` | `42` | analysis/direct 模式分配的随机种子 |
 
 ---
 
@@ -365,8 +376,8 @@ DATASET_CONFIGS = {
 
 编辑 `src/validator.py` 中的验证逻辑：
 - 添加/移除高风险词
-- 调整analysis步骤数要求
-- 添加新的问题类型检查
+- 调整 analysis 步数范围（现为自适应 1-3 步）或 `expect_analysis` 双模式校验
+- 添加新的问题类型检查（如 unanswerable / ambiguous 的拒答表达校验）
 
 ### 5. 快速检查数据质量
 
@@ -387,39 +398,67 @@ print(f'Pass: {pass_count}/{total} ({pass_count/total*100:.1f}%)')
 
 ---
 
-## 完整运行示例
+## 完整运行流程（从零到训练集）
+
+整条链路：**起 vLLM → 生成数据（自动体检）→ 人工抽检 → 降采样产出发布集 → SFT 训练**。
+推荐用并行入口 `run_parallel_pipeline.py` 一把生成；下面命令可直接复制。
+
+> 前提：图像数据集在 `--dataset-root`（默认 `dataset/`）下；把 `http://你的服务器:8001` 换成你的 vLLM 地址。
 
 ```bash
-# ==================== 完整流程 ====================
+# ======== Step 0. 起教师模型（vLLM，OpenAI 兼容口）。详见“启动vLLM服务”节 ========
+CUDA_VISIBLE_DEVICES=1,2 vllm serve Qwen/Qwen3-VL-32B-Instruct \
+  --trust-remote-code --dtype bfloat16 \
+  --mm-encoder-tp-mode data --mm-processor-cache-type shm \
+  --reasoning-parser qwen3 --enable-prefix-caching \
+  --gpu-memory-utilization 0.9 --max-model-len 8192 \
+  --tensor-parallel-size 2 --port 8001 &
 
-# 1. 启动vLLM服务（详见 "启动vLLM服务" 节）
-CUDA_VISIBLE_DEVICES=1,2 vllm serve Qwen/Qwen3.5-27B \
-  --trust-remote-code \
-  --dtype bfloat16 \
-  --mm-encoder-tp-mode data \
-  --mm-processor-cache-type shm \
-  --reasoning-parser qwen3 \
-  --enable-prefix-caching \
-  --gpu-memory-utilization 0.9 \
-  --max-model-len 8192 \
-  --tensor-parallel-size 2 \
-  --port 8001 &
+# ======== Step 1. 生成数据（Phase1→2→3 并行）。结束后自动跑一次体检 ========
+# --num-images：本次抽多少张图（不是样本数）。
+python run_parallel_pipeline.py \
+  --dataset-root dataset \
+  --datasets "LEVIR-CD+,SECOND" \
+  --num-images 1000 \
+  --num-questions 5 --min-questions 2 \
+  --direct-ratio 0.3 \
+  --max-concurrency 24 \
+  --base-url http://你的服务器:8001/v1
+# 产出：outputs/01_descriptions.jsonl / 02_questions.jsonl / 03_answers_sft.jsonl
+#       outputs/sample_manifest.jsonl（本次抽样清单，复现/续跑用）
 
-# 2. Phase 1: 生成200张图像的描述
-python 01_generate_desc.py \
-  --num-images 200 \
-  --seed 42
+# ======== Step 2. 人工抽检（浏览器）。发布前必经一步 ========
+python review_server.py            # 打开 http://127.0.0.1:8008，逐条通过/不通过
+# 审批结果写入 outputs/manual_reviews.jsonl
 
-# 3. Phase 2: 每张图生成 2-5 个问题（按图像内容自适应）
-python 02_generate_questions.py \
-  --num-questions 5 \
-  --min-questions 2
+# ======== Step 3. 降采样产出发布集（人工抽检后再跑，故意不自动） ========
+python scratch/learn/02_template_health.py outputs/03_answers_sft.jsonl \
+  --rebalance --out sft_data/release.jsonl
+# 按目标配比降采样（主要把 counting 压到 5%），产出 sft_data/release.jsonl
 
-# 4. Phase 3: 生成带分析的答案
-python 03_generate_answers.py
+# ======== Step 4. SFT 训练（TRL，Qwen3-VL-4B + LoRA） ========
+python 04_train_sft.py \
+  --model Qwen/Qwen3-VL-4B-Instruct \
+  --data sft_data/release.jsonl \
+  --output-dir runs/sft-qwen3vl-4b
+```
 
-# 5. 查看最终结果
-ls -lh outputs/
+**几个要点：**
+
+- **`--num-images` 是"抽几张图"，不是"生成几条样本"。** 每张图出 2-5 个问题、每问 1 答，所以样本数 ≈ 图数 × 3 上下。
+- Step 1 跑完会**自动体检**（只读，打印配比/塌缩/拒答率/编码报告 + 红线告警），不想要就加 `--no-health-check`。
+- **降采样不自动**：它产出最终发布集，应在人工抽检之后有意识地跑，避免绕过质检闸。
+- 想单独再看体检报告（不降采样）：`python scratch/learn/02_template_health.py outputs/03_answers_sft.jsonl`
+
+### 分步串行（调试单阶段时用）
+
+不想并行、想逐阶段调试，可用 01/02/03（行为与并行版一致）：
+
+```bash
+python 01_generate_desc.py     --num-images 1500 --base-url http://你的服务器:8001/v1
+python 02_generate_questions.py --base-url http://你的服务器:8001/v1     # 软配额已内置
+python 03_generate_answers.py   --direct-ratio 0.3 --base-url http://你的服务器:8001/v1
+# 串行版不会自动体检,需手动跑 Step 2/3
 ```
 
 ### 流水线并行运行
@@ -436,8 +475,11 @@ python run_parallel_pipeline.py \
   --samples-per-dataset "LEVIR-CD+=500,SECOND=500" \
   --num-questions 5 \
   --min-questions 2 \
+  --direct-ratio 0.3 \
   --max-concurrency 24
 ```
+
+> `run_parallel_pipeline.py` 还支持 `--direct-ratio`（直答占比，默认 0.3）和 `--no-health-check`（跳过结束后的自动体检）。
 
 #### 默认采样规模
 
@@ -466,8 +508,35 @@ python run_parallel_pipeline.py \
 - 首次运行会把采样结果固化到 `outputs/sample_manifest.jsonl`
 - 后续默认复用同一份 manifest 做断点续跑，不会重新随机
 - 如果确实要重新抽样，显式传 `--refresh-manifest`
+- 三阶段全部完成后，会**自动跑一次只读数据体检**并打印报告（`--no-health-check` 可关）
 
-完成数据生成后，进入 [人工审批前端](#人工审批前端) 完成抽样人工质检。
+完成数据生成后，进入 [人工审批前端](#人工审批前端) 完成抽样人工质检，再做 [数据体检与降采样](#数据体检与降采样)。
+
+---
+
+## 数据体检与降采样
+
+`scratch/learn/02_template_health.py` 是发布前的数据治理工具：体检（只读，给报告+红线告警）+ 按配比降采样产出发布集。
+
+```bash
+# 体检（只读）：配比/归一化熵/问题前缀塌缩/答案模板化/拒答率/编码自检；触发红线退出码 1
+python scratch/learn/02_template_health.py outputs/03_answers_sft.jsonl
+
+# 降采样产出发布集（人工抽检后再跑）：按目标配比降采样，主要把 counting 压到 5%
+python scratch/learn/02_template_health.py outputs/03_answers_sft.jsonl \
+  --rebalance --out sft_data/release.jsonl
+```
+
+**红线判定**（任一触发即 exit 1，可接 CI 门禁）：
+
+| 维度 | 红线 |
+|---|---|
+| question_type 归一化熵 | < 0.7（类型分布失衡） |
+| 问题前缀 Top-3 合计 | > 60%（Question Distribution Collapse） |
+| answer / analysis 单一开头 | > 20%（过度模板化） |
+| 无 direct 直答样本 | 全量带 analysis |
+
+其余指标（拒答率是否在 5%-10%、各题型答案长度、编码乱码）仅提示，不卡红线。
 
 ---
 
