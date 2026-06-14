@@ -87,7 +87,7 @@ def main():
                 description = vlm.call(
                     prompt=DESCRIPTION_PROMPT,
                     image_path=image_path,
-                    max_tokens=4096,
+                    max_tokens=2048,
                     temperature=0.3,
                 )
 

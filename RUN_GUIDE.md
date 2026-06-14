@@ -89,7 +89,7 @@ vllm serve Qwen/Qwen3.5-27B \
 | `--mm-processor-cache-type shm` | 图像预处理结果走共享内存缓存，重复访问同图时命中 |
 | `--reasoning-parser qwen3` | 启用 Qwen3 思考链解析；流水线侧可通过 `enable_thinking=False` 关掉思考避免输出截断 |
 | `--enable-prefix-caching` | 相同前缀的 prompt 复用 KV cache，对模板高度重复的本项目显著提速 |
-| `--max-model-len 8192` | 图像 token + prompt + 答案够用；遇超长 prompt 报错再加大 |
+| `--max-model-len 8192` | **总长度上限(图像 token + prompt + 输出),勿低于 8192**。遥感图编码常占 1000~3000+ token，若设成 4096 会挤压输出空间，导致答案被截断/漏 `</answer>`（见 [数据问题记录 #7](DATA_QUALITY_LOG.md)）。脚本侧 `max_tokens` 已设 2048 与之配合 |
 | `--gpu-memory-utilization 0.9` | 留 10% 显存给峰值，避免 OOM |
 
 > 流水线已默认通过 `extra_body={"chat_template_kwargs": {"enable_thinking": False}}` 关闭思考模式，正常情况下不会再出现 `finish_reason=length` 把 4096 tokens 全花在 reasoning 上的问题。详见 [常见问题排查](#常见问题排查)。

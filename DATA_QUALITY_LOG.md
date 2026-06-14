@@ -113,9 +113,11 @@
 **定位过程**:
 - 抽样看 format_fail 内容:`<analysis>…</analysis>\n<answer>\n是`——answer 内容完整正确,**只是缺收尾的 `</answer>`**。
 - 按类型分布:existence 293 / spatial 10 / location 9 / attribute 2;answer 尾部 298 个是"是"。
-- 排除截断:`enable_thinking:False` 已生效(`vlm_client.py`),max_tokens=4096 远大于这几十 token 的输出,不是长度截断。
+- `enable_thinking:False` 已生效(`vlm_client.py`),排除思考链吃预算。
 
-**根因**:**模型对超短答案(existence 的"是")倾向于答完就发结束符(EOS),漏掉 `</answer>`**。这是 chat/instruct 模型做结构化标签输出的通病,非 prompt 格式错误。
+**根因**(两个叠加):
+1. **服务端 `--max-model-len 4096` 太小**:对带图 VLM,图像 token(常 1000~3000+)+ prompt 已占大半,而脚本请求 `max_tokens=4096` ≥ 总上限,输出空间被挤压甚至截断。已将服务端调到 8192、脚本 `max_tokens` 调到 2048。
+2. **模型对超短答案(existence 的"是")倾向答完即发结束符(EOS),漏掉 `</answer>`**——chat/instruct 模型做结构化标签输出的通病,非 prompt 格式错误。
 
 **危害**:这 314 条被写进了输出文件(生成脚本不管 is_valid 都写盘),且降采样脚本当前**不过滤** format_fail,会漏进发布集。
 

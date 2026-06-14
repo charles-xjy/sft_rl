@@ -149,7 +149,7 @@ def phase1_task(task: dict, get_client) -> dict:
     description = client.call(
         prompt=DESCRIPTION_PROMPT,
         image_path=image_path,
-        max_tokens=4096,
+        max_tokens=2048,
         temperature=0.3,
     )
     return {
@@ -173,7 +173,7 @@ def phase2_task(task: dict, get_client, num_questions: int, min_questions: int,
     response = client.call(
         prompt=prompt,
         image_path=image_path,
-        max_tokens=4096,
+        max_tokens=2048,
         temperature=0.4,
     )
     questions = parse_questions_response(response)
@@ -204,7 +204,7 @@ def phase3_task(task: dict, get_client, direct_ratio: float = 0.3, seed: int = 4
     answer = client.call(
         prompt=prompt,
         image_path=image_path,
-        max_tokens=4096,
+        max_tokens=2048,
         temperature=0.3,
     )
     is_valid, warnings, auto_label = validate_answer(

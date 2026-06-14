@@ -82,7 +82,7 @@ try:
     description = vlm.call(
         prompt=DESCRIPTION_PROMPT,
         image_path=test_image,
-        max_tokens=4096,
+        max_tokens=2048,
         temperature=0.3,
         dump_response=True,
     )
@@ -103,7 +103,7 @@ try:
     response = vlm.call(
         prompt=question_prompt,
         image_path=test_image,
-        max_tokens=4096,
+        max_tokens=2048,
         temperature=0.4,
         dump_response=True,
     )
@@ -131,7 +131,7 @@ try:
     answer = vlm.call(
         prompt=answer_prompt,
         image_path=test_image,
-        max_tokens=4096,
+        max_tokens=2048,
         temperature=0.3,
         dump_response=True,
     )
