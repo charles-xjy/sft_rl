@@ -15,11 +15,16 @@ from datasets import load_dataset
 from unsloth import FastVisionModel
 from unsloth.trainer import UnslothVisionDataCollator
 from trl import SFTTrainer, SFTConfig
+from swanlab.integration.transformers import SwanLabCallback   # ← SwanLab 可视化
 
 # 基座与路径（按需修改）
 MODEL_NAME = "unsloth/Qwen3-VL-8B-Instruct-unsloth-bnb-4bit"  # 官方 4bit 量化版，显存友好
 TRAIN_FILE = "outputs/sft/train.jsonl"
 OUTPUT_DIR = "outputs/qwen3vl-sft-lora"
+
+# SwanLab 看板的项目 / 实验名（按需修改）
+SWANLAB_PROJECT = "qwen3vl-rs-sft"
+SWANLAB_EXPERIMENT = "qwen3vl-8b-lora"
 
 
 # ============================================================================
@@ -97,11 +102,28 @@ converted_dataset = [convert_to_conversation(sample) for sample in dataset]
 # ============================================================================
 FastVisionModel.for_training(model)   # 切到训练模式
 
+# SwanLab 可视化：把 loss / 学习率 / 显存等曲线实时记录到 swanlab 看板。
+# 首次使用先在终端跑 `swanlab login` 贴上 API key（或设环境变量 SWANLAB_API_KEY）；
+# 想完全离线、只在本机看，把下面加一行 mode="local" 即可。
+# config 里的超参只是为了在看板上展示，方便不同实验对比，不影响训练。
+swanlab_callback = SwanLabCallback(
+    project = SWANLAB_PROJECT,
+    experiment_name = SWANLAB_EXPERIMENT,
+    config = {
+        "model": MODEL_NAME,
+        "lora_r": 16,
+        "epochs": 2,
+        "effective_batch": 2 * 8,   # per_device_train_batch_size * gradient_accumulation_steps
+        "learning_rate": 2e-4,
+    },
+)
+
 trainer = SFTTrainer(
     model = model,
     tokenizer = tokenizer,
     data_collator = UnslothVisionDataCollator(model, tokenizer),  # 视觉专用，自动拼图像 token
     train_dataset = converted_dataset,
+    callbacks = [swanlab_callback],   # ← 接入 SwanLab；report_to 保持 "none" 由 callback 负责
     args = SFTConfig(
         # ---- 批大小：有效 batch = 下面两者相乘 = 16 ----
         per_device_train_batch_size = 2,    # 单卡一次几条；OOM 就降到 1

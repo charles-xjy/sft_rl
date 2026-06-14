@@ -560,7 +560,12 @@ http://127.0.0.1:8008
 ```bash
 # 先按 Unsloth 官方指引装好匹配的 torch+CUDA，再装本仓库训练依赖
 pip install -r requirements-train.txt
+
+# 训练用 SwanLab 做可视化（loss/学习率/显存曲线）。首次登录一次即可：
+swanlab login            # 贴上 swanlab.cn 的 API key；或设环境变量 SWANLAB_API_KEY
 ```
+
+> 训练时 `04_train.py` 已接入 `SwanLabCallback`，会自动把曲线推到看板（项目/实验名见脚本顶部 `SWANLAB_PROJECT` / `SWANLAB_EXPERIMENT` 常量）。想完全离线只在本机看，给回调加 `mode="local"`。
 
 ### Step B：转训练集
 
