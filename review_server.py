@@ -180,7 +180,7 @@ def main():
 
     input_path = Path(args.input)
     review_path = Path(args.reviews)
-    static_dir = Path(__file__).parent / "review_ui"
+    static_dir = Path(__file__).parent / "review" / "ui"
 
     samples = load_samples(input_path)
     handler = make_handler(samples, review_path, static_dir)
