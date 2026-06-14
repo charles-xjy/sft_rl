@@ -5,3 +5,6 @@
 /.idea/
 __pycache__/
 *.pyc
+/unsloth_compiled_cache/
+/outputs/model/
+/outputs/qwen3vl-sft-lora

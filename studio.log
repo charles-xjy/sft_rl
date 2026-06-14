@@ -1,0 +1,549 @@
+nohup: 忽略输入
+Starting Unsloth Studio on http://127.0.0.1:8888
+INFO:     Started server process [1817168]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Unsloth Studio running on http://127.0.0.1:8888 (To stop: press Ctrl+C -- on macOS, Control+C not Command+C)
+Skipping import of cpp extensions due to incompatible torch version 2.10.0+cu130 for torchao version 0.14.0         Please see GitHub issue #2919 for more info
+`torch_dtype` is deprecated! Use `dtype` instead!
+Session log: /home/charles/.unsloth/studio/logs/server/server-20260615-001851-pid1817168.log
+[OK] Frontend loaded from /home/charles/.unsloth/studio/unsloth_studio/lib/python3.13/site-packages/studio/frontend/dist
+Hardware detected: CUDA -- NVIDIA RTX 5880 Ada Generation
+
+🦥 Unsloth Studio is running
+────────────────────────────────────────────────────
+  On this machine -- open this in your browser:
+    http://127.0.0.1:8888
+    (same as http://localhost:8888)
+
+  API & health:
+    http://127.0.0.1:8888/api
+    http://127.0.0.1:8888/api/health
+────────────────────────────────────────────────────
+  Tip: if you are on this computer, open http://localhost:8888/ in your browser.
+
+  Studio is only reachable on this machine (bound to 127.0.0.1).
+  To deploy and access globally:
+    1. press Ctrl+C to stop Studio
+    2. relaunch with:  unsloth studio -H 0.0.0.0 -p 8888
+  Only do this on trusted networks -- it exposes the API on every interface.
+
+  To stop Unsloth Studio: press Ctrl+C in this terminal.
+  (On macOS this is Control+C, not Command+C.)
+────────────────────────────────────────────────────
+
+{"timestamp": "2026-06-14T16:22:46.647878Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/", "status_code": 200, "process_time_ms": 133.05}
+{"timestamp": "2026-06-14T16:22:46.915449Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/health", "status_code": 200, "process_time_ms": 1.66}
+{"timestamp": "2026-06-14T16:22:46.960894Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/auth/status", "status_code": 200, "process_time_ms": 2.72}
+{"timestamp": "2026-06-14T16:22:46.991672Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/auth/status", "status_code": 200, "process_time_ms": 1.98}
+{"timestamp": "2026-06-14T16:22:47.119990Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 4.13}
+{"timestamp": "2026-06-14T16:22:47.122040Z", "level": "info", "event": "InferenceOrchestrator initialized (subprocess mode)"}
+{"timestamp": "2026-06-14T16:22:47.841748Z", "level": "info", "event": "Top GGUF models: ['unsloth/Qwen3-Coder-Next-GGUF', 'unsloth/gemma-4-26B-A4B-it-GGUF', 'unsloth/Qwen3.6-35B-A3B-GGUF', 'unsloth/gemma-4-12b-it-GGUF', 'unsloth/Qwen3.6-27B-GGUF', 'unsloth/Qwen3.6-27B-MTP-GGUF', 'unsloth/Qwen3.6-35B-A3B-MTP-GGUF', 'unsloth/gemma-4-E4B-it-GGUF', 'unsloth/Qwen3.5-9B-GGUF', 'unsloth/gemma-4-E2B-it-GGUF', 'unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF', 'unsloth/Qwen3.5-4B-GGUF', 'unsloth/Qwen3-VL-2B-Instruct-GGUF', 'unsloth/gemma-4-31B-it-GGUF', 'unsloth/gemma-4-26B-A4B-it-qat-GGUF', 'unsloth/gemma-4-12B-it-qat-GGUF', 'unsloth/Qwen3.5-0.8B-GGUF', 'unsloth/GLM-4.7-Flash-GGUF', 'unsloth/LTX-2.3-GGUF', 'unsloth/Qwen2.5-VL-7B-Instruct-GGUF', 'unsloth/Kimi-K2.6-GGUF', 'unsloth/FLUX.2-klein-4B-GGUF', 'unsloth/Qwen3.5-9B-MTP-GGUF', 'unsloth/gpt-oss-120b-GGUF', 'unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF', 'unsloth/gemma-4-31B-it-qat-GGUF', 'unsloth/gpt-oss-20b-GGUF', 'unsloth/Qwen-Image-Edit-2511-GGUF', 'unsloth/Qwen3.5-35B-A3B-GGUF', 'unsloth/Qwen3.5-2B-GGUF', 'unsloth/GLM-5.1-GGUF', 'unsloth/gemma-4-E4B-it-qat-GGUF', 'unsloth/Qwen3.5-27B-GGUF', 'unsloth/gemma-3-270m-it-GGUF', 'unsloth/Qwen3.5-4B-MTP-GGUF', 'unsloth/gemma-3-12b-it-GGUF', 'unsloth/diffusiongemma-26B-A4B-it-GGUF', 'unsloth/FLUX.2-klein-9B-GGUF', 'unsloth/Qwen3.5-122B-A10B-GGUF', 'unsloth/Qwen3-8B-GGUF']"}
+{"timestamp": "2026-06-14T16:22:47.842007Z", "level": "info", "event": "Top hub models: ['unsloth/gemma-4-E4B-it', 'unsloth/Qwen3-4B', 'unsloth/gemma-4-31B-it-unsloth-bnb-4bit', 'unsloth/Qwen3.6-27B-NVFP4', 'unsloth/Qwen2.5-7B-Instruct-bnb-4bit', 'unsloth/Llama-3.2-1B-Instruct', 'unsloth/mistral-7b-v0.3-bnb-4bit', 'unsloth/GLM-4.7-Flash', 'unsloth/Meta-Llama-3.1-8B-Instruct', 'unsloth/gemma-4-E4B-it-unsloth-bnb-4bit', 'unsloth/gemma-3n-E4B-it', 'unsloth/Qwen2.5-3B-Instruct-unsloth-bnb-4bit', 'unsloth/Qwen3-14B-unsloth-bnb-4bit', 'unsloth/Qwen3.6-35B-A3B-NVFP4', 'unsloth/Qwen3.5-9B', 'unsloth/Qwen3-0.6B', 'unsloth/Nemotron-3-Nano-30B-A3B', 'unsloth/Qwen3-4B-unsloth-bnb-4bit', 'unsloth/Qwen3.5-4B', 'unsloth/Llama-3.1-8B-Instruct', 'unsloth/gemma-3-4b-it-bnb-4bit', 'unsloth/gemma-3-4b-it-unsloth-bnb-4bit', 'unsloth/Qwen2.5-7B-Instruct-unsloth-bnb-4bit', 'unsloth/Qwen3-8B-unsloth-bnb-4bit', 'unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit', 'unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit', 'unsloth/gemma-4-E2B-it-unsloth-bnb-4bit', 'unsloth/Qwen3.5-4B-Base', 'unsloth/Llama-3.2-3B-Instruct', 'unsloth/Qwen3.5-2B', 'unsloth/Qwen3-0.6B-unsloth-bnb-4bit', 'unsloth/Qwen2.5-0.5B-Instruct-bnb-4bit', 'unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit', 'unsloth/Llama-3.2-1B', 'unsloth/gpt-oss-20b-unsloth-bnb-4bit', 'unsloth/Qwen2.5-7B-Instruct', 'unsloth/Qwen3.5-0.8B']"}
+{"timestamp": "2026-06-14T16:22:47.849404Z", "level": "info", "event": "Found 1 trained models in /home/charles/.unsloth/studio/outputs"}
+{"timestamp": "2026-06-14T16:22:47.849589Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:22:47.849824Z", "level": "info", "event": "Found 0 exported models in /home/charles/.unsloth/studio/exports"}
+{"timestamp": "2026-06-14T16:22:47.850315Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/settings", "status_code": 200, "process_time_ms": 732.27}
+{"timestamp": "2026-06-14T16:22:47.857128Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/list", "status_code": 200, "process_time_ms": 737.35}
+{"timestamp": "2026-06-14T16:22:47.857287Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/loras", "status_code": 200, "process_time_ms": 737.47}
+{"timestamp": "2026-06-14T16:22:47.857680Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/status", "status_code": 200, "process_time_ms": 7.57}
+{"timestamp": "2026-06-14T16:22:47.857778Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 7.6}
+{"timestamp": "2026-06-14T16:22:47.903279Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/hub/active-downloads", "status_code": 200, "process_time_ms": 5.75}
+{"timestamp": "2026-06-14T16:22:47.903491Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/hub/datasets/active-downloads", "status_code": 200, "process_time_ms": 5.95}
+{"timestamp": "2026-06-14T16:22:47.949047Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.03}
+{"timestamp": "2026-06-14T16:22:48.008249Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.99}
+{"timestamp": "2026-06-14T16:22:48.039155Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.15}
+{"timestamp": "2026-06-14T16:22:48.069856Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.01}
+{"timestamp": "2026-06-14T16:22:48.256916Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.34}
+{"timestamp": "2026-06-14T16:22:48.257117Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.64}
+{"timestamp": "2026-06-14T16:22:48.284725Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.25}
+{"timestamp": "2026-06-14T16:22:48.317018Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.52}
+{"timestamp": "2026-06-14T16:22:49.266823Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/llama/update-status", "status_code": 200, "process_time_ms": 1135.47}
+{"timestamp": "2026-06-14T16:22:49.601045Z", "level": "info", "event": "Found 1 trained models in /home/charles/.unsloth/studio/outputs"}
+{"timestamp": "2026-06-14T16:22:49.601195Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:22:49.601396Z", "level": "info", "event": "Found 0 exported models in /home/charles/.unsloth/studio/exports"}
+{"timestamp": "2026-06-14T16:22:49.603804Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 12.99}
+{"timestamp": "2026-06-14T16:22:49.603980Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/list", "status_code": 200, "process_time_ms": 11.39}
+{"timestamp": "2026-06-14T16:22:49.604057Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/status", "status_code": 200, "process_time_ms": 11.41}
+{"timestamp": "2026-06-14T16:22:49.604120Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/loras", "status_code": 200, "process_time_ms": 11.43}
+{"timestamp": "2026-06-14T16:22:49.604179Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 11.45}
+{"timestamp": "2026-06-14T16:22:49.604237Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/auth/status", "status_code": 200, "process_time_ms": 11.47}
+{"timestamp": "2026-06-14T16:22:49.638803Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.34}
+{"timestamp": "2026-06-14T16:22:49.910833Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.38}
+{"timestamp": "2026-06-14T16:22:49.946090Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.0}
+{"timestamp": "2026-06-14T16:22:52.691675Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/train/runs", "status_code": 200, "process_time_ms": 9.3}
+{"timestamp": "2026-06-14T16:22:52.691893Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.41}
+{"timestamp": "2026-06-14T16:22:52.691990Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/auth/status", "status_code": 200, "process_time_ms": 3.42}
+{"timestamp": "2026-06-14T16:22:52.842311Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/studio/update-status", "status_code": 200, "process_time_ms": 719.13}
+{"timestamp": "2026-06-14T16:22:53.134963Z", "level": "info", "event": "TrainingBackend initialized (subprocess mode)"}
+{"timestamp": "2026-06-14T16:22:53.135974Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 79.84}
+{"timestamp": "2026-06-14T16:22:53.138952Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/settings/upload-limit", "status_code": 200, "process_time_ms": 82.74}
+{"timestamp": "2026-06-14T16:22:53.184658Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 3.09}
+{"timestamp": "2026-06-14T16:22:55.621949Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/train/runs", "status_code": 200, "process_time_ms": 2.08}
+{"timestamp": "2026-06-14T16:22:56.384284Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 3.06}
+{"timestamp": "2026-06-14T16:23:05.212997Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 5.65}
+{"timestamp": "2026-06-14T16:23:05.240635Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/auth/status", "status_code": 200, "process_time_ms": 3.04}
+{"timestamp": "2026-06-14T16:23:05.240794Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.05}
+{"timestamp": "2026-06-14T16:23:05.288547Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.36}
+{"timestamp": "2026-06-14T16:23:10.741672Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/auth/status", "status_code": 200, "process_time_ms": 1.85}
+{"timestamp": "2026-06-14T16:23:11.072308Z", "level": "info", "event": "Found 1 training runs in /home/charles/.unsloth/studio/outputs"}
+{"timestamp": "2026-06-14T16:23:11.072725Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/checkpoints", "status_code": 200, "process_time_ms": 4.88}
+{"timestamp": "2026-06-14T16:23:11.099493Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 2.32}
+{"timestamp": "2026-06-14T16:23:48.555424Z", "level": "info", "event": "Found 1 training runs in /home/charles/.unsloth/studio/outputs"}
+{"timestamp": "2026-06-14T16:23:48.555719Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/auth/status", "status_code": 200, "process_time_ms": 5.86}
+{"timestamp": "2026-06-14T16:23:48.555877Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 4.38}
+{"timestamp": "2026-06-14T16:23:48.555963Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/checkpoints", "status_code": 200, "process_time_ms": 4.41}
+{"timestamp": "2026-06-14T16:23:48.634227Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 7.37}
+{"timestamp": "2026-06-14T16:23:48.634429Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/list", "status_code": 200, "process_time_ms": 5.39}
+{"timestamp": "2026-06-14T16:23:48.634524Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/status", "status_code": 200, "process_time_ms": 5.42}
+{"timestamp": "2026-06-14T16:23:48.662643Z", "level": "info", "event": "Found 1 trained models in /home/charles/.unsloth/studio/outputs"}
+{"timestamp": "2026-06-14T16:23:48.662807Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:23:48.663020Z", "level": "info", "event": "Found 0 exported models in /home/charles/.unsloth/studio/exports"}
+{"timestamp": "2026-06-14T16:23:48.663393Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 4.59}
+{"timestamp": "2026-06-14T16:23:48.663501Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/loras", "status_code": 200, "process_time_ms": 4.53}
+{"timestamp": "2026-06-14T16:23:48.679164Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 5.02}
+{"timestamp": "2026-06-14T16:23:48.679348Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/list", "status_code": 200, "process_time_ms": 5.17}
+{"timestamp": "2026-06-14T16:23:48.697740Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.46}
+{"timestamp": "2026-06-14T16:23:48.707961Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/status", "status_code": 200, "process_time_ms": 3.69}
+{"timestamp": "2026-06-14T16:23:48.708130Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 2.3}
+{"timestamp": "2026-06-14T16:23:48.722509Z", "level": "info", "event": "Found 1 trained models in /home/charles/.unsloth/studio/outputs"}
+{"timestamp": "2026-06-14T16:23:48.722673Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:23:48.722898Z", "level": "info", "event": "Found 0 exported models in /home/charles/.unsloth/studio/exports"}
+{"timestamp": "2026-06-14T16:23:48.724686Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/loras", "status_code": 200, "process_time_ms": 3.82}
+{"timestamp": "2026-06-14T16:23:48.724858Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.71}
+{"timestamp": "2026-06-14T16:23:48.910535Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.62}
+{"timestamp": "2026-06-14T16:23:48.910729Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.63}
+{"timestamp": "2026-06-14T16:23:48.957968Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.3}
+{"timestamp": "2026-06-14T16:23:48.958149Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.53}
+{"timestamp": "2026-06-14T16:23:49.003047Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.48}
+{"timestamp": "2026-06-14T16:23:49.003238Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.51}
+{"timestamp": "2026-06-14T16:23:49.600099Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 11.81}
+{"timestamp": "2026-06-14T16:23:49.600329Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/scan-folders", "status_code": 200, "process_time_ms": 9.53}
+{"timestamp": "2026-06-14T16:23:49.600431Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/recommended-folders", "status_code": 200, "process_time_ms": 9.57}
+{"timestamp": "2026-06-14T16:23:49.600516Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/cached-gguf", "status_code": 200, "process_time_ms": 9.61}
+{"timestamp": "2026-06-14T16:23:49.600596Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/cached-models", "status_code": 200, "process_time_ms": 9.64}
+{"timestamp": "2026-06-14T16:23:55.448775Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:23:55.448923Z", "level": "info", "event": "Auto-detected local LoRA adapter at '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' (base: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct)"}
+{"timestamp": "2026-06-14T16:23:55.449036Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:23:55.465347Z", "level": "info", "event": "Model /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct detected as VLM (model_type=qwen3_vl, architectures=['Qwen3VLForConditionalGeneration'])"}
+{"timestamp": "2026-06-14T16:23:57.026050Z", "level": "info", "event": "Loaded default model defaults from /home/charles/.unsloth/studio/unsloth_studio/lib/python3.13/site-packages/studio/backend/assets/configs/model_defaults/default.yaml"}
+{"timestamp": "2026-06-14T16:23:57.029576Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/api/inference/validate", "status_code": 200, "process_time_ms": 1584.1}
+{"timestamp": "2026-06-14T16:23:57.032793Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.89}
+{"timestamp": "2026-06-14T16:23:57.090929Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:23:57.091185Z", "level": "info", "event": "Auto-detected local LoRA adapter at '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' (base: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct)"}
+{"timestamp": "2026-06-14T16:23:57.091500Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:23:57.092241Z", "level": "info", "event": "ExportOrchestrator initialized (subprocess mode)"}
+{"timestamp": "2026-06-14T16:23:57.092484Z", "level": "info", "event": "No unsloth_training_method in adapter_config.json. Base model '/home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct' has no -bnb-4bit suffix \u2014 setting load_in_4bit=False"}
+{"timestamp": "2026-06-14T16:23:57.419781Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 2.78}
+{"timestamp": "2026-06-14T16:23:57.743465Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:23:57.743790Z", "level": "info", "event": "Auto-detected local LoRA adapter at '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' (base: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct)"}
+{"timestamp": "2026-06-14T16:23:57.744025Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:23:57.798195Z", "level": "info", "event": "Spawning fresh inference subprocess for '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' (transformers 4.x, attempt 1/2)"}
+{"timestamp": "2026-06-14T16:23:57.810499Z", "level": "info", "event": "Inference subprocess started (pid=1840516)"}
+{"timestamp": "2026-06-14T16:23:59.320827Z", "level": "info", "event": "Applied gpu_ids: CUDA_VISIBLE_DEVICES='1'"}
+Hardware detected: CUDA -- NVIDIA RTX 5880 Ada Generation
+{"timestamp": "2026-06-14T16:23:59.376110Z", "level": "info", "event": "Resolved LoRA adapter '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' \u2192 base model '/home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct'"}
+{"timestamp": "2026-06-14T16:23:59.376362Z", "level": "info", "event": "Using default transformers (4.57.x) for /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora"}
+{"timestamp": "2026-06-14T16:23:59.377278Z", "level": "info", "event": "Subprocess status: Importing Unsloth..."}
+{"timestamp": "2026-06-14T16:23:59.407648Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 2.06}
+{"timestamp": "2026-06-14T16:24:01.415346Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.72}
+{"timestamp": "2026-06-14T16:24:03.413922Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.25}
+{"timestamp": "2026-06-14T16:24:05.418875Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.68}
+{"timestamp": "2026-06-14T16:24:05.964400Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 2.65}
+{"timestamp": "2026-06-14T16:24:05.999673Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/scan-folders", "status_code": 200, "process_time_ms": 8.21}
+{"timestamp": "2026-06-14T16:24:05.999878Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/cached-gguf", "status_code": 200, "process_time_ms": 6.08}
+{"timestamp": "2026-06-14T16:24:05.999975Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/recommended-folders", "status_code": 200, "process_time_ms": 6.11}
+{"timestamp": "2026-06-14T16:24:06.000056Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/cached-models", "status_code": 200, "process_time_ms": 6.14}
+{"timestamp": "2026-06-14T16:24:07.407997Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.34}
+{"timestamp": "2026-06-14T16:24:09.411197Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.8}
+🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
+🦥 Unsloth Zoo will now patch everything to make training faster!
+{"timestamp": "2026-06-14T16:24:10.189582Z", "level": "info", "event": "InferenceBackend initialized on cuda"}
+{"timestamp": "2026-06-14T16:24:10.189911Z", "level": "info", "event": "Subprocess loaded transformers 4.57.6"}
+{"timestamp": "2026-06-14T16:24:10.189950Z", "level": "info", "event": "InferenceBackend initialized on cuda"}
+{"timestamp": "2026-06-14T16:24:10.190464Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:24:10.190499Z", "level": "info", "event": "Auto-detected local LoRA adapter at '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' (base: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct)"}
+{"timestamp": "2026-06-14T16:24:10.190572Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:24:10.190617Z", "level": "info", "event": "Subprocess status: Loading model..."}
+{"timestamp": "2026-06-14T16:24:10.193010Z", "level": "info", "event": "Model /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct detected as VLM (model_type=qwen3_vl, architectures=['Qwen3VLForConditionalGeneration'])"}
+{"timestamp": "2026-06-14T16:24:11.413144Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.38}
+{"timestamp": "2026-06-14T16:24:11.578004Z", "level": "info", "event": "Using device_map='sequential' (1 GPU(s) visible)"}
+{"timestamp": "2026-06-14T16:24:11.578168Z", "level": "info", "event": "Loading vision model (LoRA adapter): /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora"}
+{"timestamp": "2026-06-14T16:24:11.578453Z", "level": "info", "event": "GPU Memory [Before loading /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora] CUDA (NVIDIA RTX 5880 Ada Generation): 0.01GB/47.37GB (0.0% used, 47.36GB free)"}
+{"timestamp": "2026-06-14T16:24:13.409153Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.51}
+{"timestamp": "2026-06-14T16:24:15.421356Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.31}
+{"timestamp": "2026-06-14T16:24:17.411994Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/load-progress", "status_code": 200, "process_time_ms": 1.54}
+==((====))==  Unsloth 2026.6.7: Fast Qwen3_Vl patching. Transformers: 4.57.6.
+   \\   /|    NVIDIA RTX 5880 Ada Generation. Num GPUs = 1. Max memory: 47.372 GB. Platform: Linux.
+O^O/ \_/ \    Torch: 2.10.0+cu130. CUDA: 8.9. CUDA Toolkit: 13.0. Triton: 3.6.0
+\        /    Bfloat16 = TRUE. FA [Xformers = 0.0.35. FA2 = True]
+ "-____-"     Free license: http://github.com/unslothai/unsloth
+Unsloth: Fast downloading is enabled - ignore downloading bars which are red colored!
+Unsloth: QLoRA and full finetuning all not selected. Switching to 16bit LoRA.
+{"timestamp": "2026-06-14T16:24:18.024909Z", "level": "info", "event": "Loaded chat template for /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora (detected as chatml format)"}
+{"timestamp": "2026-06-14T16:24:18.025022Z", "level": "info", "event": "Chat template loaded for /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora: chatml format"}
+{"timestamp": "2026-06-14T16:24:18.025060Z", "level": "info", "event": "Successfully loaded model: /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora"}
+{"timestamp": "2026-06-14T16:24:18.025335Z", "level": "info", "event": "GPU Memory [After loading /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora] CUDA (NVIDIA RTX 5880 Ada Generation): 4.06GB/47.37GB (8.6% used, 43.31GB free)"}
+{"timestamp": "2026-06-14T16:24:18.025415Z", "level": "info", "event": "Inference subprocess ready, entering command loop"}
+{"timestamp": "2026-06-14T16:24:18.025768Z", "level": "info", "event": "Model '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' loaded successfully in subprocess"}
+{"timestamp": "2026-06-14T16:24:18.026085Z", "level": "info", "event": "Loaded model: /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora"}
+{"timestamp": "2026-06-14T16:24:18.029027Z", "level": "info", "event": "Loaded default model defaults from /home/charles/.unsloth/studio/unsloth_studio/lib/python3.13/site-packages/studio/backend/assets/configs/model_defaults/default.yaml"}
+{"timestamp": "2026-06-14T16:24:18.031694Z", "level": "info", "event": "safetensors: model supports tool calling"}
+{"timestamp": "2026-06-14T16:24:18.032079Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/api/inference/load", "status_code": 200, "process_time_ms": 20959.89}
+{"timestamp": "2026-06-14T16:24:18.070873Z", "level": "info", "event": "safetensors: model supports tool calling"}
+{"timestamp": "2026-06-14T16:24:18.073627Z", "level": "info", "event": "Loaded default model defaults from /home/charles/.unsloth/studio/unsloth_studio/lib/python3.13/site-packages/studio/backend/assets/configs/model_defaults/default.yaml"}
+{"timestamp": "2026-06-14T16:24:18.076553Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/list", "status_code": 200, "process_time_ms": 10.96}
+{"timestamp": "2026-06-14T16:24:18.076770Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/status", "status_code": 200, "process_time_ms": 7.08}
+{"timestamp": "2026-06-14T16:24:18.096468Z", "level": "info", "event": "Found 1 trained models in /home/charles/.unsloth/studio/outputs"}
+{"timestamp": "2026-06-14T16:24:18.096636Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:24:18.096874Z", "level": "info", "event": "Found 0 exported models in /home/charles/.unsloth/studio/exports"}
+{"timestamp": "2026-06-14T16:24:18.098545Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/loras", "status_code": 200, "process_time_ms": 3.76}
+{"timestamp": "2026-06-14T16:24:18.125455Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/rag/knowledge-bases", "status_code": 200, "process_time_ms": 28.23}
+{"timestamp": "2026-06-14T16:24:18.467438Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/settings", "status_code": 200, "process_time_ms": 9.13}
+{"timestamp": "2026-06-14T16:24:30.810890Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.1}
+{"timestamp": "2026-06-14T16:24:30.847996Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.51}
+{"timestamp": "2026-06-14T16:24:30.919227Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 43.68}
+{"timestamp": "2026-06-14T16:24:30.957019Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.46}
+{"timestamp": "2026-06-14T16:24:30.989381Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.3}
+{"timestamp": "2026-06-14T16:24:30.992523Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/rag/knowledge-bases", "status_code": 200, "process_time_ms": 7.72}
+{"timestamp": "2026-06-14T16:24:31.019136Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.22}
+{"timestamp": "2026-06-14T16:24:31.038144Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 3.79}
+{"timestamp": "2026-06-14T16:24:31.041566Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/rag/knowledge-bases", "status_code": 200, "process_time_ms": 4.5}
+{"timestamp": "2026-06-14T16:24:31.066322Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.17}
+{"timestamp": "2026-06-14T16:24:31.082329Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 3.26}
+{"timestamp": "2026-06-14T16:24:31.099018Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.93}
+{"timestamp": "2026-06-14T16:24:31.129890Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.75}
+{"timestamp": "2026-06-14T16:24:31.369880Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 8.7}
+{"timestamp": "2026-06-14T16:24:31.370044Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 8.83}
+{"timestamp": "2026-06-14T16:24:31.370144Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 8.88}
+{"timestamp": "2026-06-14T16:24:31.370305Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 4.61}
+{"timestamp": "2026-06-14T16:24:31.370409Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 3.88}
+{"timestamp": "2026-06-14T16:24:31.411232Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 4.82}
+{"timestamp": "2026-06-14T16:24:31.411391Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 4.92}
+{"timestamp": "2026-06-14T16:24:31.411482Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 4.94}
+{"timestamp": "2026-06-14T16:24:31.456741Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.93}
+{"timestamp": "2026-06-14T16:24:31.502973Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.64}
+{"timestamp": "2026-06-14T16:24:31.549837Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.5}
+{"timestamp": "2026-06-14T16:24:31.580124Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 3.2}
+{"timestamp": "2026-06-14T16:24:31.592490Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 13.09}
+{"timestamp": "2026-06-14T16:24:31.612545Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.85}
+{"timestamp": "2026-06-14T16:24:31.704826Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages/E6tuNiC", "status_code": 200, "process_time_ms": 92.88}
+{"timestamp": "2026-06-14T16:24:31.712702Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 7.46}
+{"timestamp": "2026-06-14T16:24:31.713939Z", "level": "info", "event": "safetensors: model supports tool calling"}
+{"timestamp": "2026-06-14T16:24:31.736930Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/v1/chat/completions", "status_code": 200, "process_time_ms": 31.62}
+{"timestamp": "2026-06-14T16:24:31.743847Z", "level": "info", "event": "Received command: generate"}
+{"timestamp": "2026-06-14T16:24:31.744081Z", "level": "info", "event": "Starting text generation for request_id=5f1a8bc1-3fe0-4dab-9f02-329bce2772f4"}
+{"timestamp": "2026-06-14T16:24:31.744188Z", "level": "info", "event": "No registered Unsloth template for /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora, using tokenizer default"}
+{"timestamp": "2026-06-14T16:24:31.750344Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.64}
+{"timestamp": "2026-06-14T16:24:31.797168Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.08}
+{"timestamp": "2026-06-14T16:24:31.843785Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.88}
+{"timestamp": "2026-06-14T16:24:31.889032Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.72}
+{"timestamp": "2026-06-14T16:24:31.923283Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.41}
+{"timestamp": "2026-06-14T16:24:32.064367Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.43}
+{"timestamp": "2026-06-14T16:24:32.064530Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.44}
+{"timestamp": "2026-06-14T16:24:32.109072Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.19}
+{"timestamp": "2026-06-14T16:24:32.109243Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.32}
+{"timestamp": "2026-06-14T16:24:41.773604Z", "level": "info", "event": "Finished text generation for request_id=5f1a8bc1-3fe0-4dab-9f02-329bce2772f4"}
+{"timestamp": "2026-06-14T16:24:41.840410Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.94}
+{"timestamp": "2026-06-14T16:24:41.861432Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.04}
+{"timestamp": "2026-06-14T16:24:41.883317Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 2.74}
+{"timestamp": "2026-06-14T16:24:41.896751Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.45}
+{"timestamp": "2026-06-14T16:24:41.917058Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.02}
+{"timestamp": "2026-06-14T16:24:42.042953Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages/jfY45No", "status_code": 200, "process_time_ms": 107.99}
+{"timestamp": "2026-06-14T16:24:42.062226Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.73}
+{"timestamp": "2026-06-14T16:24:42.072108Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.84}
+{"timestamp": "2026-06-14T16:24:42.085012Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.03}
+{"timestamp": "2026-06-14T16:24:42.096814Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.71}
+{"timestamp": "2026-06-14T16:24:42.107769Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.88}
+{"timestamp": "2026-06-14T16:24:42.119887Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.95}
+{"timestamp": "2026-06-14T16:24:42.139060Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.98}
+{"timestamp": "2026-06-14T16:24:42.155823Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.98}
+{"timestamp": "2026-06-14T16:24:42.172845Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.05}
+{"timestamp": "2026-06-14T16:24:42.206698Z", "level": "info", "event": "request_completed", "method": "PATCH", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 18.44}
+{"timestamp": "2026-06-14T16:24:42.206883Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 17.98}
+{"timestamp": "2026-06-14T16:24:42.226845Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.02}
+{"timestamp": "2026-06-14T16:24:42.244360Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.04}
+{"timestamp": "2026-06-14T16:24:42.264773Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.85}
+{"timestamp": "2026-06-14T16:24:42.282140Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.71}
+{"timestamp": "2026-06-14T16:24:42.300598Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.81}
+{"timestamp": "2026-06-14T16:24:42.320891Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.0}
+{"timestamp": "2026-06-14T16:24:43.094275Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 4.84}
+{"timestamp": "2026-06-14T16:24:43.094529Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.4}
+{"timestamp": "2026-06-14T16:24:43.117685Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 4.74}
+{"timestamp": "2026-06-14T16:24:43.117949Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.42}
+{"timestamp": "2026-06-14T16:25:28.211727Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.46}
+{"timestamp": "2026-06-14T16:25:28.257731Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.69}
+{"timestamp": "2026-06-14T16:25:28.302710Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.26}
+{"timestamp": "2026-06-14T16:25:28.333385Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.29}
+{"timestamp": "2026-06-14T16:25:28.365554Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.78}
+{"timestamp": "2026-06-14T16:25:28.393521Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.69}
+{"timestamp": "2026-06-14T16:25:28.425988Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.23}
+{"timestamp": "2026-06-14T16:25:28.472096Z", "level": "info", "event": "safetensors: model supports tool calling"}
+{"timestamp": "2026-06-14T16:25:28.472593Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 16.52}
+{"timestamp": "2026-06-14T16:25:28.473064Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/v1/chat/completions", "status_code": 200, "process_time_ms": 15.57}
+{"timestamp": "2026-06-14T16:25:28.475055Z", "level": "info", "event": "Received command: generate"}
+{"timestamp": "2026-06-14T16:25:28.475406Z", "level": "info", "event": "Starting text generation for request_id=ad299dcc-0536-4b5a-8bd6-75dbcfd426d5"}
+{"timestamp": "2026-06-14T16:25:28.475613Z", "level": "info", "event": "No registered Unsloth template for /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora, using tokenizer default"}
+{"timestamp": "2026-06-14T16:25:28.517663Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.73}
+{"timestamp": "2026-06-14T16:25:28.549162Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.74}
+{"timestamp": "2026-06-14T16:25:28.580401Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.75}
+{"timestamp": "2026-06-14T16:25:28.584628Z", "level": "info", "event": "Finished text generation for request_id=ad299dcc-0536-4b5a-8bd6-75dbcfd426d5"}
+{"timestamp": "2026-06-14T16:25:28.627485Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.53}
+{"timestamp": "2026-06-14T16:25:28.657930Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.49}
+{"timestamp": "2026-06-14T16:25:28.692183Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 4.12}
+{"timestamp": "2026-06-14T16:25:28.692371Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.77}
+{"timestamp": "2026-06-14T16:25:28.738347Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.57}
+{"timestamp": "2026-06-14T16:25:28.778172Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages/GWHAHVQ", "status_code": 200, "process_time_ms": 12.59}
+{"timestamp": "2026-06-14T16:25:28.816094Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.88}
+{"timestamp": "2026-06-14T16:25:28.816237Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.92}
+{"timestamp": "2026-06-14T16:25:28.863795Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 4.24}
+{"timestamp": "2026-06-14T16:25:28.863929Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 4.22}
+{"timestamp": "2026-06-14T16:25:28.893605Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.73}
+{"timestamp": "2026-06-14T16:25:28.893738Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.8}
+{"timestamp": "2026-06-14T16:25:28.989515Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 13.46}
+{"timestamp": "2026-06-14T16:25:29.015607Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.88}
+{"timestamp": "2026-06-14T16:25:29.064118Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.02}
+{"timestamp": "2026-06-14T16:25:29.095445Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.56}
+{"timestamp": "2026-06-14T16:25:29.331756Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.64}
+{"timestamp": "2026-06-14T16:25:29.331908Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.74}
+{"timestamp": "2026-06-14T16:25:29.377165Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.36}
+{"timestamp": "2026-06-14T16:25:29.377349Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.62}
+{"timestamp": "2026-06-14T16:25:35.799266Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.4}
+{"timestamp": "2026-06-14T16:25:35.831105Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.75}
+{"timestamp": "2026-06-14T16:25:35.876966Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.55}
+{"timestamp": "2026-06-14T16:25:35.940777Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.9}
+{"timestamp": "2026-06-14T16:25:35.969521Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.96}
+{"timestamp": "2026-06-14T16:25:36.005878Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 4.77}
+{"timestamp": "2026-06-14T16:25:36.006022Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 4.75}
+{"timestamp": "2026-06-14T16:25:36.049047Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.71}
+{"timestamp": "2026-06-14T16:25:36.095309Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.1}
+{"timestamp": "2026-06-14T16:25:36.128391Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.4}
+{"timestamp": "2026-06-14T16:25:36.159706Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.08}
+{"timestamp": "2026-06-14T16:25:36.188991Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.14}
+{"timestamp": "2026-06-14T16:25:36.210743Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 14.18}
+{"timestamp": "2026-06-14T16:25:36.229606Z", "level": "info", "event": "safetensors: model supports tool calling"}
+{"timestamp": "2026-06-14T16:25:36.229961Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages/2ccOecs", "status_code": 200, "process_time_ms": 10.0}
+{"timestamp": "2026-06-14T16:25:36.230306Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/v1/chat/completions", "status_code": 200, "process_time_ms": 9.59}
+{"timestamp": "2026-06-14T16:25:36.232225Z", "level": "info", "event": "Received command: generate"}
+{"timestamp": "2026-06-14T16:25:36.232501Z", "level": "info", "event": "Starting text generation for request_id=2642e7ff-1974-4685-987c-3b47465b84c6"}
+{"timestamp": "2026-06-14T16:25:36.232632Z", "level": "info", "event": "No registered Unsloth template for /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora, using tokenizer default"}
+{"timestamp": "2026-06-14T16:25:36.250939Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.94}
+{"timestamp": "2026-06-14T16:25:36.282768Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.69}
+{"timestamp": "2026-06-14T16:25:36.319183Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.55}
+{"timestamp": "2026-06-14T16:25:36.362580Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.15}
+{"timestamp": "2026-06-14T16:25:36.615618Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 4.95}
+{"timestamp": "2026-06-14T16:25:36.615771Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 4.95}
+{"timestamp": "2026-06-14T16:25:36.650267Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 4.75}
+{"timestamp": "2026-06-14T16:25:36.650477Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.88}
+{"timestamp": "2026-06-14T16:25:36.650573Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.92}
+{"timestamp": "2026-06-14T16:25:36.692077Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.25}
+{"timestamp": "2026-06-14T16:25:40.232029Z", "level": "info", "event": "Finished text generation for request_id=2642e7ff-1974-4685-987c-3b47465b84c6"}
+{"timestamp": "2026-06-14T16:25:40.274568Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.61}
+{"timestamp": "2026-06-14T16:25:40.306704Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.34}
+{"timestamp": "2026-06-14T16:25:40.339848Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 4.03}
+{"timestamp": "2026-06-14T16:25:40.340003Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 4.14}
+{"timestamp": "2026-06-14T16:25:40.385004Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.06}
+{"timestamp": "2026-06-14T16:25:40.424626Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages/WWA6rKj", "status_code": 200, "process_time_ms": 9.58}
+{"timestamp": "2026-06-14T16:25:40.465519Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.72}
+{"timestamp": "2026-06-14T16:25:40.465738Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.64}
+{"timestamp": "2026-06-14T16:25:40.495982Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.26}
+{"timestamp": "2026-06-14T16:25:40.496163Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.56}
+{"timestamp": "2026-06-14T16:25:40.527707Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.3}
+{"timestamp": "2026-06-14T16:25:40.527856Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 3.31}
+{"timestamp": "2026-06-14T16:25:40.609547Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 14.37}
+{"timestamp": "2026-06-14T16:25:40.651543Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.88}
+{"timestamp": "2026-06-14T16:25:40.681015Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.08}
+{"timestamp": "2026-06-14T16:25:40.713671Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.59}
+{"timestamp": "2026-06-14T16:25:40.949480Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 4.81}
+{"timestamp": "2026-06-14T16:25:40.949683Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.64}
+{"timestamp": "2026-06-14T16:25:40.994160Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.73}
+{"timestamp": "2026-06-14T16:25:40.994357Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.61}
+{"timestamp": "2026-06-14T16:25:43.038460Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.49}
+{"timestamp": "2026-06-14T16:25:43.071458Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.26}
+{"timestamp": "2026-06-14T16:25:43.117105Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.91}
+{"timestamp": "2026-06-14T16:25:43.148800Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.49}
+{"timestamp": "2026-06-14T16:25:43.183460Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 3.56}
+{"timestamp": "2026-06-14T16:25:43.183641Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 2.19}
+{"timestamp": "2026-06-14T16:25:43.227828Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.9}
+{"timestamp": "2026-06-14T16:25:43.273468Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.75}
+{"timestamp": "2026-06-14T16:25:43.304694Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.97}
+{"timestamp": "2026-06-14T16:25:43.352494Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.68}
+{"timestamp": "2026-06-14T16:25:43.400441Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.14}
+{"timestamp": "2026-06-14T16:25:43.455696Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 17.08}
+{"timestamp": "2026-06-14T16:25:43.457925Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.85}
+{"timestamp": "2026-06-14T16:25:43.485292Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages/tU1SZ9w", "status_code": 200, "process_time_ms": 9.72}
+{"timestamp": "2026-06-14T16:25:43.497088Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.63}
+{"timestamp": "2026-06-14T16:25:43.537466Z", "level": "info", "event": "safetensors: model supports tool calling"}
+{"timestamp": "2026-06-14T16:25:43.538271Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/v1/chat/completions", "status_code": 200, "process_time_ms": 2.64}
+{"timestamp": "2026-06-14T16:25:43.540365Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.94}
+{"timestamp": "2026-06-14T16:25:43.542333Z", "level": "info", "event": "Received command: generate"}
+{"timestamp": "2026-06-14T16:25:43.542641Z", "level": "info", "event": "Starting text generation for request_id=91c86ee8-a32e-4b77-8744-bbf372ab7e02"}
+{"timestamp": "2026-06-14T16:25:43.542802Z", "level": "info", "event": "No registered Unsloth template for /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora, using tokenizer default"}
+{"timestamp": "2026-06-14T16:25:43.569926Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.97}
+{"timestamp": "2026-06-14T16:25:43.600772Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.54}
+{"timestamp": "2026-06-14T16:25:43.631878Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.17}
+{"timestamp": "2026-06-14T16:25:43.662870Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.7}
+{"timestamp": "2026-06-14T16:25:43.697993Z", "level": "info", "event": "Finished text generation for request_id=91c86ee8-a32e-4b77-8744-bbf372ab7e02"}
+{"timestamp": "2026-06-14T16:25:43.740537Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.39}
+{"timestamp": "2026-06-14T16:25:43.788175Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.13}
+{"timestamp": "2026-06-14T16:25:43.822597Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 6.72}
+{"timestamp": "2026-06-14T16:25:43.822860Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 4.46}
+{"timestamp": "2026-06-14T16:25:43.822960Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 3.76}
+{"timestamp": "2026-06-14T16:25:43.850381Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.3}
+{"timestamp": "2026-06-14T16:25:43.867404Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.53}
+{"timestamp": "2026-06-14T16:25:43.867572Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.55}
+{"timestamp": "2026-06-14T16:25:43.880262Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.03}
+{"timestamp": "2026-06-14T16:25:43.920809Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages/IPEQeAi", "status_code": 200, "process_time_ms": 10.78}
+{"timestamp": "2026-06-14T16:25:43.959622Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.94}
+{"timestamp": "2026-06-14T16:25:43.959794Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.6}
+{"timestamp": "2026-06-14T16:25:43.992816Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.31}
+{"timestamp": "2026-06-14T16:25:43.992991Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.51}
+{"timestamp": "2026-06-14T16:25:44.099241Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.2}
+{"timestamp": "2026-06-14T16:25:44.099432Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.56}
+{"timestamp": "2026-06-14T16:25:44.198311Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 12.62}
+{"timestamp": "2026-06-14T16:25:44.240430Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.98}
+{"timestamp": "2026-06-14T16:25:44.273126Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.74}
+{"timestamp": "2026-06-14T16:25:44.305658Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.17}
+{"timestamp": "2026-06-14T16:25:44.555370Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.82}
+{"timestamp": "2026-06-14T16:25:44.555565Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.67}
+{"timestamp": "2026-06-14T16:25:44.601356Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.6}
+{"timestamp": "2026-06-14T16:25:44.601555Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.62}
+{"timestamp": "2026-06-14T16:25:51.249484Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.0}
+{"timestamp": "2026-06-14T16:25:51.282969Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.14}
+{"timestamp": "2026-06-14T16:25:51.325485Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.73}
+{"timestamp": "2026-06-14T16:25:51.357403Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.28}
+{"timestamp": "2026-06-14T16:25:51.388527Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.78}
+{"timestamp": "2026-06-14T16:25:51.422039Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 3.79}
+{"timestamp": "2026-06-14T16:25:51.422259Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.64}
+{"timestamp": "2026-06-14T16:25:51.451976Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.76}
+{"timestamp": "2026-06-14T16:25:51.482350Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.79}
+{"timestamp": "2026-06-14T16:25:51.515549Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.18}
+{"timestamp": "2026-06-14T16:25:51.562777Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.0}
+{"timestamp": "2026-06-14T16:25:51.613676Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 13.0}
+{"timestamp": "2026-06-14T16:25:51.616149Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.06}
+{"timestamp": "2026-06-14T16:25:51.643848Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages/Jj1363R", "status_code": 200, "process_time_ms": 8.7}
+{"timestamp": "2026-06-14T16:25:51.656483Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.6}
+{"timestamp": "2026-06-14T16:25:51.699405Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.84}
+{"timestamp": "2026-06-14T16:25:51.700607Z", "level": "info", "event": "safetensors: model supports tool calling"}
+{"timestamp": "2026-06-14T16:25:51.701329Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/v1/chat/completions", "status_code": 200, "process_time_ms": 5.5}
+{"timestamp": "2026-06-14T16:25:51.702747Z", "level": "info", "event": "Received command: generate"}
+{"timestamp": "2026-06-14T16:25:51.702914Z", "level": "info", "event": "Starting text generation for request_id=5bdc78aa-8a04-4100-b157-7cdef6daea92"}
+{"timestamp": "2026-06-14T16:25:51.702987Z", "level": "info", "event": "No registered Unsloth template for /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora, using tokenizer default"}
+{"timestamp": "2026-06-14T16:25:51.728575Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.77}
+{"timestamp": "2026-06-14T16:25:51.759234Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.04}
+{"timestamp": "2026-06-14T16:25:51.792185Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.04}
+{"timestamp": "2026-06-14T16:25:51.822311Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.95}
+{"timestamp": "2026-06-14T16:25:51.856981Z", "level": "info", "event": "Finished text generation for request_id=5bdc78aa-8a04-4100-b157-7cdef6daea92"}
+{"timestamp": "2026-06-14T16:25:51.897937Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.23}
+{"timestamp": "2026-06-14T16:25:51.928473Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.95}
+{"timestamp": "2026-06-14T16:25:51.963175Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 4.03}
+{"timestamp": "2026-06-14T16:25:51.963369Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 2.19}
+{"timestamp": "2026-06-14T16:25:51.976722Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.9}
+{"timestamp": "2026-06-14T16:25:52.009978Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 5.12}
+{"timestamp": "2026-06-14T16:25:52.010169Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 2.93}
+{"timestamp": "2026-06-14T16:25:52.010278Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.97}
+{"timestamp": "2026-06-14T16:25:52.054459Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.7}
+{"timestamp": "2026-06-14T16:25:52.070507Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages/eWOxGL2", "status_code": 200, "process_time_ms": 18.39}
+{"timestamp": "2026-06-14T16:25:52.140149Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.78}
+{"timestamp": "2026-06-14T16:25:52.140349Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.58}
+{"timestamp": "2026-06-14T16:25:52.181499Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.72}
+{"timestamp": "2026-06-14T16:25:52.181688Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.6}
+{"timestamp": "2026-06-14T16:25:52.212356Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.51}
+{"timestamp": "2026-06-14T16:25:52.212540Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads/__LOCALID_uAW1oER", "status_code": 200, "process_time_ms": 1.59}
+{"timestamp": "2026-06-14T16:25:52.299979Z", "level": "info", "event": "request_completed", "method": "PUT", "path": "/api/chat/threads/__LOCALID_uAW1oER/messages", "status_code": 200, "process_time_ms": 17.33}
+{"timestamp": "2026-06-14T16:25:52.333702Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.75}
+{"timestamp": "2026-06-14T16:25:52.366659Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.05}
+{"timestamp": "2026-06-14T16:25:52.397121Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 1.79}
+{"timestamp": "2026-06-14T16:25:52.649362Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.91}
+{"timestamp": "2026-06-14T16:25:52.649556Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.65}
+{"timestamp": "2026-06-14T16:25:52.695078Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 3.53}
+{"timestamp": "2026-06-14T16:25:52.695272Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.61}
+{"timestamp": "2026-06-14T16:26:06.193946Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 10.51}
+{"timestamp": "2026-06-14T16:26:06.194172Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/scan-folders", "status_code": 200, "process_time_ms": 8.2}
+{"timestamp": "2026-06-14T16:26:06.194283Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/recommended-folders", "status_code": 200, "process_time_ms": 8.24}
+{"timestamp": "2026-06-14T16:26:06.194366Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/cached-gguf", "status_code": 200, "process_time_ms": 7.51}
+{"timestamp": "2026-06-14T16:26:06.194442Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/cached-models", "status_code": 200, "process_time_ms": 7.52}
+{"timestamp": "2026-06-14T16:26:10.089715Z", "level": "info", "event": "safetensors: model supports tool calling"}
+{"timestamp": "2026-06-14T16:26:10.092616Z", "level": "info", "event": "Loaded default model defaults from /home/charles/.unsloth/studio/unsloth_studio/lib/python3.13/site-packages/studio/backend/assets/configs/model_defaults/default.yaml"}
+{"timestamp": "2026-06-14T16:26:10.096636Z", "level": "info", "event": "Found 1 trained models in /home/charles/.unsloth/studio/outputs"}
+{"timestamp": "2026-06-14T16:26:10.096787Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:26:10.097023Z", "level": "info", "event": "Found 0 exported models in /home/charles/.unsloth/studio/exports"}
+{"timestamp": "2026-06-14T16:26:10.099266Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 16.14}
+{"timestamp": "2026-06-14T16:26:10.099529Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/list", "status_code": 200, "process_time_ms": 14.39}
+{"timestamp": "2026-06-14T16:26:10.099633Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/inference/status", "status_code": 200, "process_time_ms": 14.43}
+{"timestamp": "2026-06-14T16:26:10.099719Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/loras", "status_code": 200, "process_time_ms": 14.45}
+{"timestamp": "2026-06-14T16:26:10.099802Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 14.48}
+{"timestamp": "2026-06-14T16:26:10.126083Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/auth/status", "status_code": 200, "process_time_ms": 1.39}
+{"timestamp": "2026-06-14T16:26:10.142498Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.25}
+{"timestamp": "2026-06-14T16:26:10.161122Z", "level": "info", "event": "Found 1 training runs in /home/charles/.unsloth/studio/outputs"}
+{"timestamp": "2026-06-14T16:26:10.163565Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/checkpoints", "status_code": 200, "process_time_ms": 5.83}
+{"timestamp": "2026-06-14T16:26:10.163750Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/local", "status_code": 200, "process_time_ms": 2.32}
+{"timestamp": "2026-06-14T16:26:10.181262Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 2.43}
+{"timestamp": "2026-06-14T16:26:12.635923Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 3.19}
+{"timestamp": "2026-06-14T16:26:12.682641Z", "level": "info", "event": "request_completed", "method": "DELETE", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 50.11}
+{"timestamp": "2026-06-14T16:26:12.728483Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/projects", "status_code": 200, "process_time_ms": 2.38}
+{"timestamp": "2026-06-14T16:26:13.024138Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.85}
+{"timestamp": "2026-06-14T16:26:13.055795Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/chat/threads", "status_code": 200, "process_time_ms": 1.89}
+{"timestamp": "2026-06-14T16:26:35.659528Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/browse-folders", "status_code": 200, "process_time_ms": 28.35}
+{"timestamp": "2026-06-14T16:26:42.434570Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/browse-folders", "status_code": 200, "process_time_ms": 56.14}
+{"timestamp": "2026-06-14T16:26:46.265061Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/browse-folders", "status_code": 200, "process_time_ms": 6.41}
+{"timestamp": "2026-06-14T16:26:52.574856Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/browse-folders", "status_code": 200, "process_time_ms": 5.66}
+{"timestamp": "2026-06-14T16:26:56.495406Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/browse-folders", "status_code": 200, "process_time_ms": 4.61}
+{"timestamp": "2026-06-14T16:27:00.027447Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/models/browse-folders", "status_code": 200, "process_time_ms": 4.26}
+{"timestamp": "2026-06-14T16:27:13.474478Z", "level": "info", "event": "request_completed", "method": "GET", "path": "/api/export/logs/stream", "status_code": 200, "process_time_ms": 3.09}
+{"timestamp": "2026-06-14T16:27:13.475718Z", "level": "info", "event": "Unloading inference model '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' to free GPU memory for export"}
+{"timestamp": "2026-06-14T16:27:13.976349Z", "level": "info", "event": "Received command: shutdown"}
+{"timestamp": "2026-06-14T16:27:13.976516Z", "level": "info", "event": "Shutdown command received, exiting"}
+{"timestamp": "2026-06-14T16:27:13.976576Z", "level": "info", "event": "Unloading model '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' from memory."}
+{"timestamp": "2026-06-14T16:27:14.472178Z", "level": "info", "event": "Model '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora' successfully unloaded."}
+{"timestamp": "2026-06-14T16:27:16.992153Z", "level": "info", "event": "Inference subprocess shut down"}
+{"timestamp": "2026-06-14T16:27:16.993788Z", "level": "info", "event": "Spawning fresh export subprocess for '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora/checkpoint-364'"}
+{"timestamp": "2026-06-14T16:27:16.998886Z", "level": "info", "event": "Export subprocess started (pid=1854961)"}
+{"timestamp": "2026-06-14T16:27:17.399106Z", "level": "info", "event": "Resolved LoRA adapter '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora/checkpoint-364' \u2192 base model '/home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct'"}
+{"timestamp": "2026-06-14T16:27:17.399550Z", "level": "info", "event": "Using default transformers (4.57.x) for /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora/checkpoint-364"}
+{"timestamp": "2026-06-14T16:27:17.401606Z", "level": "info", "event": "Export subprocess status: Importing Unsloth..."}
+🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
+🦥 Unsloth Zoo will now patch everything to make training faster!
+{"timestamp": "2026-06-14T16:27:26.128275Z", "level": "info", "event": "Export subprocess loaded transformers 4.57.6"}
+Hardware detected: CUDA -- NVIDIA RTX 5880 Ada Generation
+{"timestamp": "2026-06-14T16:27:26.128634Z", "level": "info", "event": "InferenceOrchestrator initialized (subprocess mode)"}
+{"timestamp": "2026-06-14T16:27:26.130184Z", "level": "info", "event": "Loading checkpoint: /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora/checkpoint-364"}
+{"timestamp": "2026-06-14T16:27:26.417247Z", "level": "info", "event": "Export subprocess status: Loading checkpoint: /home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora/checkpoint-364"}
+{"timestamp": "2026-06-14T16:27:26.130225Z", "level": "info", "event": "Starting memory cleanup..."}
+{"timestamp": "2026-06-14T16:27:26.417888Z", "level": "info", "event": "Memory cleanup completed successfully"}
+{"timestamp": "2026-06-14T16:27:26.418597Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:27:27.112370Z", "level": "info", "event": "Top GGUF models: ['unsloth/Qwen3-Coder-Next-GGUF', 'unsloth/gemma-4-26B-A4B-it-GGUF', 'unsloth/Qwen3.6-35B-A3B-GGUF', 'unsloth/gemma-4-12b-it-GGUF', 'unsloth/Qwen3.6-27B-GGUF', 'unsloth/Qwen3.6-27B-MTP-GGUF', 'unsloth/Qwen3.6-35B-A3B-MTP-GGUF', 'unsloth/gemma-4-E4B-it-GGUF', 'unsloth/Qwen3.5-9B-GGUF', 'unsloth/gemma-4-E2B-it-GGUF', 'unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF', 'unsloth/Qwen3.5-4B-GGUF', 'unsloth/Qwen3-VL-2B-Instruct-GGUF', 'unsloth/gemma-4-31B-it-GGUF', 'unsloth/gemma-4-26B-A4B-it-qat-GGUF', 'unsloth/gemma-4-12B-it-qat-GGUF', 'unsloth/Qwen3.5-0.8B-GGUF', 'unsloth/GLM-4.7-Flash-GGUF', 'unsloth/LTX-2.3-GGUF', 'unsloth/Qwen2.5-VL-7B-Instruct-GGUF', 'unsloth/Kimi-K2.6-GGUF', 'unsloth/FLUX.2-klein-4B-GGUF', 'unsloth/Qwen3.5-9B-MTP-GGUF', 'unsloth/gpt-oss-120b-GGUF', 'unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF', 'unsloth/gemma-4-31B-it-qat-GGUF', 'unsloth/gpt-oss-20b-GGUF', 'unsloth/Qwen-Image-Edit-2511-GGUF', 'unsloth/Qwen3.5-35B-A3B-GGUF', 'unsloth/Qwen3.5-2B-GGUF', 'unsloth/GLM-5.1-GGUF', 'unsloth/gemma-4-E4B-it-qat-GGUF', 'unsloth/Qwen3.5-27B-GGUF', 'unsloth/gemma-3-270m-it-GGUF', 'unsloth/Qwen3.5-4B-MTP-GGUF', 'unsloth/gemma-3-12b-it-GGUF', 'unsloth/diffusiongemma-26B-A4B-it-GGUF', 'unsloth/FLUX.2-klein-9B-GGUF', 'unsloth/Qwen3.5-122B-A10B-GGUF', 'unsloth/Qwen3-8B-GGUF']"}
+{"timestamp": "2026-06-14T16:27:27.112545Z", "level": "info", "event": "Top hub models: ['unsloth/gemma-4-E4B-it', 'unsloth/Qwen3-4B', 'unsloth/gemma-4-31B-it-unsloth-bnb-4bit', 'unsloth/Qwen3.6-27B-NVFP4', 'unsloth/Qwen2.5-7B-Instruct-bnb-4bit', 'unsloth/Llama-3.2-1B-Instruct', 'unsloth/mistral-7b-v0.3-bnb-4bit', 'unsloth/GLM-4.7-Flash', 'unsloth/Meta-Llama-3.1-8B-Instruct', 'unsloth/gemma-4-E4B-it-unsloth-bnb-4bit', 'unsloth/gemma-3n-E4B-it', 'unsloth/Qwen2.5-3B-Instruct-unsloth-bnb-4bit', 'unsloth/Qwen3-14B-unsloth-bnb-4bit', 'unsloth/Qwen3.6-35B-A3B-NVFP4', 'unsloth/Qwen3.5-9B', 'unsloth/Qwen3-0.6B', 'unsloth/Nemotron-3-Nano-30B-A3B', 'unsloth/Qwen3-4B-unsloth-bnb-4bit', 'unsloth/Qwen3.5-4B', 'unsloth/Llama-3.1-8B-Instruct', 'unsloth/gemma-3-4b-it-bnb-4bit', 'unsloth/gemma-3-4b-it-unsloth-bnb-4bit', 'unsloth/Qwen2.5-7B-Instruct-unsloth-bnb-4bit', 'unsloth/Qwen3-8B-unsloth-bnb-4bit', 'unsloth/Qwen2.5-Coder-7B-Instruct-bnb-4bit', 'unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit', 'unsloth/gemma-4-E2B-it-unsloth-bnb-4bit', 'unsloth/Qwen3.5-4B-Base', 'unsloth/Llama-3.2-3B-Instruct', 'unsloth/Qwen3.5-2B', 'unsloth/Qwen3-0.6B-unsloth-bnb-4bit', 'unsloth/Qwen2.5-0.5B-Instruct-bnb-4bit', 'unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit', 'unsloth/Llama-3.2-1B', 'unsloth/gpt-oss-20b-unsloth-bnb-4bit', 'unsloth/Qwen2.5-7B-Instruct', 'unsloth/Qwen3.5-0.8B']"}
+{"timestamp": "2026-06-14T16:27:27.808217Z", "level": "info", "event": "Model /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct detected as VLM (model_type=qwen3_vl, architectures=['Qwen3VLForConditionalGeneration'])"}
+{"timestamp": "2026-06-14T16:27:27.808291Z", "level": "info", "event": "Loading as vision model..."}
+==((====))==  Unsloth 2026.6.7: Fast Qwen3_Vl patching. Transformers: 4.57.6.
+   \\   /|    NVIDIA RTX 5880 Ada Generation. Num GPUs = 3. Max memory: 47.363 GB. Platform: Linux.
+O^O/ \_/ \    Torch: 2.10.0+cu130. CUDA: 8.9. CUDA Toolkit: 13.0. Triton: 3.6.0
+\        /    Bfloat16 = TRUE. FA [Xformers = 0.0.35. FA2 = True]
+ "-____-"     Free license: http://github.com/unslothai/unsloth
+Unsloth: Fast downloading is enabled - ignore downloading bars which are red colored!
+{"timestamp": "2026-06-14T16:27:35.320009Z", "level": "info", "event": "Successfully loaded Vision model (PEFT Adapter)"}
+{"timestamp": "2026-06-14T16:27:35.320147Z", "level": "info", "event": "Export subprocess ready, entering command loop"}
+{"timestamp": "2026-06-14T16:27:35.320673Z", "level": "info", "event": "Checkpoint '/home/charles/.unsloth/studio/outputs/qwen3vl-sft-lora/checkpoint-364' loaded in subprocess"}
+{"timestamp": "2026-06-14T16:27:35.322055Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/api/export/load-checkpoint", "status_code": 200, "process_time_ms": 21848.3}
+{"timestamp": "2026-06-14T16:27:35.348155Z", "level": "info", "event": "Received command: export"}
+{"timestamp": "2026-06-14T16:27:35.348563Z", "level": "info", "event": "Saving merged model locally to: /home/charles/mycode/sft+rl/outputs/model"}
+Detected local model directory: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct
+Found HuggingFace hub cache directory: /home/charles/.cache/huggingface/hub
+Unsloth: Preparing safetensor model files:   0%|          | 0/1 [00:00<?, ?it/s]Copied model.safetensors from local model directory
+Unsloth: Preparing safetensor model files: 100%|██████████| 1/1 [00:01<00:00,  1.69s/it]Unsloth: Preparing safetensor model files: 100%|██████████| 1/1 [00:01<00:00,  1.69s/it]
+Unsloth: Merging weights into 16bit:   0%|          | 0/1 [00:00<?, ?it/s]Unsloth: Merging weights into 16bit: 100%|██████████| 1/1 [00:05<00:00,  5.45s/it]Unsloth: Merging weights into 16bit: 100%|██████████| 1/1 [00:05<00:00,  5.45s/it]
+Unsloth: Merge process complete. Saved to `/home/charles/mycode/sft+rl/outputs/model`
+{"timestamp": "2026-06-14T16:27:44.088236Z", "level": "info", "event": "Detected base model from adapter_config.json: /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct"}
+{"timestamp": "2026-06-14T16:27:44.088556Z", "level": "info", "event": "Wrote export metadata to /home/charles/mycode/sft+rl/outputs/model/export_metadata.json"}
+{"timestamp": "2026-06-14T16:27:44.088596Z", "level": "info", "event": "Model saved successfully to /home/charles/mycode/sft+rl/outputs/model"}
+{"timestamp": "2026-06-14T16:27:44.103677Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/api/export/export/merged", "status_code": 200, "process_time_ms": 8758.9}
+{"timestamp": "2026-06-14T16:27:44.129116Z", "level": "info", "event": "Received command: cleanup"}
+{"timestamp": "2026-06-14T16:27:44.129317Z", "level": "info", "event": "Starting memory cleanup..."}
+{"timestamp": "2026-06-14T16:27:44.460861Z", "level": "info", "event": "Memory cleanup completed successfully"}
+{"timestamp": "2026-06-14T16:27:44.462027Z", "level": "info", "event": "Received command: shutdown"}
+{"timestamp": "2026-06-14T16:27:44.462113Z", "level": "info", "event": "Shutdown command received, cleaning up and exiting"}
+{"timestamp": "2026-06-14T16:27:44.462146Z", "level": "info", "event": "Starting memory cleanup..."}
+{"timestamp": "2026-06-14T16:27:44.732113Z", "level": "info", "event": "Memory cleanup completed successfully"}
+{"timestamp": "2026-06-14T16:27:46.174187Z", "level": "info", "event": "Export subprocess shut down"}
+{"timestamp": "2026-06-14T16:27:46.175133Z", "level": "info", "event": "request_completed", "method": "POST", "path": "/api/export/cleanup", "status_code": 200, "process_time_ms": 2048.79}
