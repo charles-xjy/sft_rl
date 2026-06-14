@@ -9,6 +9,7 @@ then runs over all pending questions.
 Overall concurrent API requests are capped by --max-concurrency.
 """
 import argparse
+import hashlib
 import json
 import threading
 from collections import defaultdict, deque
@@ -19,7 +20,13 @@ from typing import Deque, Dict, List, Tuple
 
 from tqdm import tqdm
 
-from src.prompts import ANSWER_GENERATION_PROMPT, DESCRIPTION_PROMPT, QUESTION_GENERATION_PROMPT
+from src.prompts import (
+    ANSWER_DIRECT_PROMPT,
+    ANSWER_GENERATION_PROMPT,
+    DESCRIPTION_PROMPT,
+    QUESTION_GENERATION_PROMPT,
+)
+from src.sampling import assign_question_types, format_plan
 from src.scanner import (
     load_manifest,
     parse_per_dataset_spec,
@@ -39,7 +46,24 @@ VALID_QUESTION_TYPES = {
     "location",
     "spatial_relation",
     "counting",
+    "unanswerable",
+    "ambiguous",
 }
+
+
+def pick_answer_mode(image_path: str, question: str, qtype: str,
+                     direct_ratio: float, seed: int) -> str:
+    """决定一条问答用 analysis 还是 direct 模式。
+
+    并行环境下不共享 rng,改用 (image|question) 的稳定哈希做确定性抽样:
+    同一条样本无论重跑还是断点续跑都得到相同模式,且天然线程安全。
+    unanswerable / spatial_relation 需要证据链,固定走 analysis。
+    """
+    if qtype in ("unanswerable", "ambiguous", "spatial_relation"):
+        return "analysis"
+    h = hashlib.md5(f"{seed}|{image_path}|{question}".encode("utf-8")).hexdigest()
+    frac = int(h[:8], 16) / 0xFFFFFFFF
+    return "direct" if frac < direct_ratio else "analysis"
 
 
 def parse_questions_response(response: str) -> List[Dict[str, str]]:
@@ -136,13 +160,14 @@ def phase1_task(task: dict, get_client) -> dict:
     }
 
 
-def phase2_task(task: dict, get_client, num_questions: int, min_questions: int) -> dict:
+def phase2_task(task: dict, get_client, num_questions: int, min_questions: int,
+                seed: int = 42) -> dict:
     """Run Phase 2 for one image description."""
     client = get_client()
     image_path = Path(task["image_path"])
+    assigned = assign_question_types(task["image_path"], min_questions, num_questions, seed)
     prompt = QUESTION_GENERATION_PROMPT.format(
-        num_questions=num_questions,
-        min_questions=min_questions,
+        assigned_plan=format_plan(assigned),
         description=task["description"],
     )
     response = client.call(
@@ -163,11 +188,15 @@ def phase2_task(task: dict, get_client, num_questions: int, min_questions: int) 
     }
 
 
-def phase3_task(task: dict, get_client) -> dict:
+def phase3_task(task: dict, get_client, direct_ratio: float = 0.3, seed: int = 42) -> dict:
     """Run Phase 3 for one question."""
     client = get_client()
     image_path = Path(task["image_path"])
-    prompt = ANSWER_GENERATION_PROMPT.format(
+    mode = pick_answer_mode(
+        task["image_path"], task["question"], task["question_type"], direct_ratio, seed
+    )
+    template = ANSWER_GENERATION_PROMPT if mode == "analysis" else ANSWER_DIRECT_PROMPT
+    prompt = template.format(
         question=task["question"],
         question_type=task["question_type"],
         description=task["description"],
@@ -178,7 +207,9 @@ def phase3_task(task: dict, get_client) -> dict:
         max_tokens=4096,
         temperature=0.3,
     )
-    is_valid, warnings, auto_label = validate_answer(answer, task["question_type"])
+    is_valid, warnings, auto_label = validate_answer(
+        answer, task["question_type"], expect_analysis=(mode == "analysis")
+    )
     record = {
         "messages": [
             {"role": "user", "content": f"<image>\n{task['question']}"},
@@ -186,7 +217,8 @@ def phase3_task(task: dict, get_client) -> dict:
         ],
         "images": [str(image_path.resolve())],
         "meta": {
-            "task_type": "vqa_with_analysis",
+            "task_type": "vqa_with_analysis" if mode == "analysis" else "vqa_direct",
+            "answer_mode": mode,
             "question_type": task["question_type"],
             "source_dataset": task["dataset"],
             "auto_validation": {
@@ -263,9 +295,12 @@ def main():
     parser.add_argument("--base-url", type=str, default="http://10.129.107.145:8001/v1", help="vLLM 服务地址")
     parser.add_argument("--retries", type=int, default=3, help="失败重试次数")
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
+    parser.add_argument("--direct-ratio", type=float, default=0.3,
+                        help="不带 analysis 的直答样本占比(打散固定起手式,缓解过度模板化)")
     parser.add_argument("--output-dir", type=str, default="outputs", help="输出目录")
     parser.add_argument("--manifest", type=str, default=None, help="样本清单文件路径；默认 outputs/sample_manifest.jsonl")
     parser.add_argument("--refresh-manifest", action="store_true", help="忽略已有 manifest，重新采样并覆盖")
+    parser.add_argument("--no-health-check", action="store_true", help="跳过生成结束后的自动数据体检")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -402,9 +437,9 @@ def main():
         if stage == "phase1":
             future = executor.submit(phase1_task, task, get_client)
         elif stage == "phase2":
-            future = executor.submit(phase2_task, task, get_client, args.num_questions, args.min_questions)
+            future = executor.submit(phase2_task, task, get_client, args.num_questions, args.min_questions, args.seed)
         elif stage == "phase3":
-            future = executor.submit(phase3_task, task, get_client)
+            future = executor.submit(phase3_task, task, get_client, args.direct_ratio, args.seed)
         else:
             raise ValueError(f"unknown task stage: {stage}")
         future_to_task[future] = task
@@ -532,6 +567,28 @@ def main():
 
     print_summary(stats, desc_path, question_path, answer_path)
     print(f"stats_file: {stats_path}")
+
+    if not args.no_health_check and answer_path.exists():
+        run_health_check(answer_path)
+
+
+def run_health_check(answer_path: Path) -> None:
+    """生成结束后自动跑一次只读体检(报告 + 红线告警)。不自动降采样。"""
+    import subprocess
+    import sys
+
+    script = Path(__file__).parent / "scratch" / "learn" / "02_template_health.py"
+    if not script.exists():
+        print(f"[health-check] 跳过: 未找到 {script}")
+        return
+    print("\n" + "=" * 80)
+    print("自动体检(只读)。降采样请在人工抽检后手动运行:")
+    print(f"  python {script} {answer_path} --rebalance --out sft_data/release.jsonl")
+    print("=" * 80, flush=True)  # flush 确保提示在子进程报告之前打印
+    # 体检触发红线会以退出码 1 返回,这里不让它中断流水线,仅作提示
+    rc = subprocess.run([sys.executable, str(script), str(answer_path)]).returncode
+    if rc == 1:
+        print("\n[health-check] [!] 体检触发红线,请按上方报告处理后再发布(详见报告)。")
 
 
 if __name__ == "__main__":

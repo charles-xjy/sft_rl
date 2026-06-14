@@ -7,13 +7,14 @@ Output: outputs/03_answers_sft.jsonl
 """
 import argparse
 import json
+import random
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
 from tqdm import tqdm
 
-from src.prompts import ANSWER_GENERATION_PROMPT
+from src.prompts import ANSWER_DIRECT_PROMPT, ANSWER_GENERATION_PROMPT
 from src.validator import validate_answer
 from src.vlm_client import VLMClient
 
@@ -25,7 +26,20 @@ def main():
     parser.add_argument("--model", type=str, default=None, help="模型名称")
     parser.add_argument("--base-url", type=str, default="http://10.129.107.145:8001/v1", help="vLLM 服务地址")
     parser.add_argument("--retries", type=int, default=3, help="失败重试次数")
+    parser.add_argument("--direct-ratio", type=float, default=0.3,
+                        help="不带 analysis 的直答样本占比(打散固定起手式,缓解过度模板化)")
+    parser.add_argument("--seed", type=int, default=42, help="直答/分析模式分配的随机种子")
     args = parser.parse_args()
+
+    rng = random.Random(args.seed)
+
+    def pick_mode(qtype: str) -> str:
+        """决定本条用 analysis 还是 direct 模式。
+        unanswerable / spatial_relation 需要证据链,始终走 analysis;
+        其余按 direct_ratio 随机直答。"""
+        if qtype in ("unanswerable", "ambiguous", "spatial_relation"):
+            return "analysis"
+        return "direct" if rng.random() < args.direct_ratio else "analysis"
 
     input_file = Path(args.input)
     output_file = Path(args.output)
@@ -96,7 +110,9 @@ def main():
             pbar.set_description(f"处理中 {dataset} | {question_type}")
 
             try:
-                prompt = ANSWER_GENERATION_PROMPT.format(
+                mode = pick_mode(question_type)
+                template = ANSWER_GENERATION_PROMPT if mode == "analysis" else ANSWER_DIRECT_PROMPT
+                prompt = template.format(
                     question=question,
                     question_type=question_type,
                     description=description,
@@ -112,7 +128,9 @@ def main():
                     print(f"\n[empty-output] {image_path.name}: empty answer for question: {question[:80]}")
                     continue
 
-                is_valid, warnings, auto_label = validate_answer(answer, question_type)
+                is_valid, warnings, auto_label = validate_answer(
+                    answer, question_type, expect_analysis=(mode == "analysis")
+                )
                 record = {
                     "messages": [
                         {"role": "user", "content": f"<image>\n{question}"},
@@ -120,7 +138,8 @@ def main():
                     ],
                     "images": [str(image_path.resolve())],
                     "meta": {
-                        "task_type": "vqa_with_analysis",
+                        "task_type": "vqa_with_analysis" if mode == "analysis" else "vqa_direct",
+                        "answer_mode": mode,
                         "question_type": question_type,
                         "source_dataset": dataset,
                         "auto_validation": {
@@ -138,6 +157,7 @@ def main():
                 stats["total"] += 1
                 stats[f"dataset_{dataset}"] += 1
                 stats[f"type_{question_type}"] += 1
+                stats[f"mode_{mode}"] += 1
                 if auto_label == "pass":
                     stats["auto_pass"] += 1
 

@@ -103,46 +103,71 @@ def _find_direct_risks(text: str) -> List[str]:
     return warnings
 
 
-def validate_answer(answer: str, question_type: str) -> Tuple[bool, List[str], str]:
+def validate_answer(
+    answer: str, question_type: str, expect_analysis: bool = True
+) -> Tuple[bool, List[str], str]:
     """
     Validate a generated answer.
+
+    Args:
+        expect_analysis: True 为带 analysis 的主力样本；False 为直答(无 analysis)样本。
 
     Returns:
         (is_valid, warnings, auto_label)
     """
     warnings: List[str] = []
 
-    if "<analysis>" not in answer or "</analysis>" not in answer:
-        return False, ["缺少 analysis 标签"], "format_fail"
+    # <answer> 两种模式都必须有
     if "<answer>" not in answer or "</answer>" not in answer:
         return False, ["缺少 answer 标签"], "format_fail"
 
     analysis_match, answer_match, analysis_text, answer_text = _extract_sections(answer)
-    if not analysis_match:
-        return False, ["无法解析 analysis 内容"], "format_fail"
     if not answer_match:
         return False, ["无法解析 answer 内容"], "format_fail"
-
-    steps = [s.strip() for s in analysis_text.split("\n") if re.match(r"^\d+\.", s.strip())]
-    if len(steps) != 3:
-        warnings.append(f"analysis 步骤数为 {len(steps)}，建议固定为 3 步")
-
-    if len(analysis_text) < 30:
-        warnings.append("analysis 过短，证据链可能不足")
-    if len(analysis_text) > 220:
-        warnings.append("analysis 过长，建议压缩为简短证据链")
     if len(answer_text) == 0:
         return False, ["answer 内容为空"], "format_fail"
+
+    if expect_analysis:
+        if "<analysis>" not in answer or "</analysis>" not in answer:
+            return False, ["缺少 analysis 标签"], "format_fail"
+        if not analysis_match:
+            return False, ["无法解析 analysis 内容"], "format_fail"
+
+        # analysis 步数现为自适应(1-3 步),只在异常时提示
+        steps = [s.strip() for s in analysis_text.split("\n") if re.match(r"^\d+\.", s.strip())]
+        if len(steps) == 0:
+            warnings.append("analysis 没有分步证据")
+        elif len(steps) > 3:
+            warnings.append(f"analysis 步骤数为 {len(steps)}，建议不超过 3 步")
+
+        if len(analysis_text) < 20:
+            warnings.append("analysis 过短，证据链可能不足")
+        if len(analysis_text) > 220:
+            warnings.append("analysis 过长，建议压缩为简短证据链")
+
+        for pattern in META_REASONING_PATTERNS:
+            if re.search(pattern, analysis_text):
+                warnings.append("analysis 含有元推理或过程废话")
+                break
+
+        warnings.extend(_find_direct_risks(analysis_text))
+    else:
+        # 直答模式不应再出现 analysis
+        if "<analysis>" in answer:
+            warnings.append("直答样本不应包含 analysis 标签")
+
     if len(answer_text) > 40:
         warnings.append("answer 过长，建议只保留最终结论")
 
-    for pattern in META_REASONING_PATTERNS:
-        if re.search(pattern, analysis_text):
-            warnings.append("analysis 含有元推理或过程废话")
-            break
-
     warnings.extend(_find_direct_risks(answer_text))
-    warnings.extend(_find_direct_risks(analysis_text))
+
+    if question_type == "unanswerable":
+        if not re.search(r"无法|不确定|难以确认|不能确定", answer_text):
+            warnings.append("unanswerable 题答案未给出拒答/不确定表达")
+
+    if question_type == "ambiguous":
+        if not re.search(r"可能|也可能|无法准确区分|难以区分|或", answer_text):
+            warnings.append("ambiguous 题答案未给出多解/不确定表达")
 
     if question_type == "counting":
         if not re.search(r"\d+|零|一|二|三|四|五|六|七|八|九|十|约|大约|无法确认|不确定", answer_text):

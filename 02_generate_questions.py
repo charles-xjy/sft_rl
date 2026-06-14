@@ -13,6 +13,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from src.prompts import QUESTION_GENERATION_PROMPT
+from src.sampling import assign_question_types, format_plan
 from src.scanner import load_processed_records
 from src.vlm_client import VLMClient
 
@@ -26,6 +27,8 @@ def parse_questions_response(response: str) -> list:
         "location",
         "spatial_relation",
         "counting",
+        "unanswerable",
+        "ambiguous",
     }
 
     for line in response.strip().split("\n"):
@@ -50,6 +53,7 @@ def main():
     parser.add_argument("--model", type=str, default=None, help="模型名称")
     parser.add_argument("--base-url", type=str, default="http://10.129.107.145:8001/v1", help="vLLM 服务地址")
     parser.add_argument("--retries", type=int, default=3, help="失败重试次数")
+    parser.add_argument("--seed", type=int, default=42, help="问题类型软配额分配的随机种子")
     args = parser.parse_args()
 
     input_file = Path(args.input)
@@ -97,9 +101,11 @@ def main():
             pbar.set_description(f"处理中 {dataset}")
 
             try:
+                assigned = assign_question_types(
+                    desc["image_path"], args.min_questions, args.num_questions, args.seed
+                )
                 prompt = QUESTION_GENERATION_PROMPT.format(
-                    num_questions=args.num_questions,
-                    min_questions=args.min_questions,
+                    assigned_plan=format_plan(assigned),
                     description=description,
                 )
                 response = vlm.call(
