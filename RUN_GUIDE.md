@@ -1,71 +1,99 @@
 # 详细使用指南
 
+遥感 VQA 蒸馏 → 人工审核 → Qwen3-VL LoRA 微调的全流程说明。
+每个入口脚本在本文只出现一次，按运行顺序排列。
+
 ## 目录
-1. [模型配置](#模型配置)
-2. [生成流程（01_generate.py）](#生成流程01_generatepy)
-3. [参数详解](#参数详解)
-4. [常见问题排查](#常见问题排查)
-5. [高级用法](#高级用法)
-6. [完整运行流程（从零到训练集）](#完整运行流程从零到训练集)
-7. [数据体检与降采样](#数据体检与降采样)
-8. [人工审批前端](#人工审批前端)
-9. [SFT 训练（Unsloth / Qwen3-VL）](#sft-训练unsloth--qwen3-vl)
+
+1. [总览：流程与入口](#总览流程与入口)
+2. [命令速查（从零到训练集）](#命令速查从零到训练集)
+3. [起 vLLM 服务](#起-vllm-服务)
+4. [① 构造数据 `01_generate.py`](#-构造数据-01_generatepy)
+5. [② 数据体检 `src/health.py`](#-数据体检-srchealthpy)
+6. [③ 切训练 / 评测集 `03_convert.py`](#-切训练--评测集-03_convertpy)
+7. [④ 基线预测 `05_baseline.py`](#-基线预测-05_baselinepy)
+8. [⑤ 人工审核 + 多模型对比 `02_review.py`](#-人工审核--多模型对比-02_reviewpy)
+9. [⑥ SFT 训练 `04_train.py`](#-sft-训练-04_trainpy)
+10. [训练后：推理 / 合并 `07` / `06`](#训练后推理--合并-07--06)
+11. [常见问题](#常见问题)
+12. [高级用法](#高级用法)
 
 ---
 
-## 模型配置
+## 总览：流程与入口
 
-### 方式零：自动探测（默认行为 ✨）
-
-脚本启动时会自动调用 vLLM 的 `/v1/models` 接口，探测服务端实际加载的模型名称：
-
-```bash
-# 不需要指定 --model，自动探测
-python 01_generate.py
+```
+起服务(teacher:8001 + baseline:8002)
+   │
+   ▼
+① 01_generate.py   构造数据(描述→出题→蒸馏答案，三阶段并行) + 自动体检
+   │  └─ outputs/03_answers_sft.jsonl
+② src/health.py    数据体检(只读，红线告警)               ← ①末尾自动跑
+   │
+③ 03_convert.py    切 train/val + 路径重映射 + 转 Unsloth 可读
+   │  └─ outputs/sft/{train,val}.jsonl
+④ 05_baseline.py   未微调模型在 val 上的预测，作对照
+   │  └─ outputs/baseline/val_pred.jsonl
+⑤ 02_review.py     人工审核 + 多模型并排对比(浏览器)
+   │  └─ outputs/manual_reviews.jsonl
+⑥ 04_train.py      Qwen3-VL + LoRA 微调(仅 Linux+GPU)
+      └─ outputs/qwen3vl-sft-lora  → 07_infer_lora.py / 06_merge_lora.py
 ```
 
-运行时会显示：
-```
-[自动探测] 服务端模型: Qwen/Qwen3-VL-32B-Instruct
-```
+**所有 vLLM 服务都在 `10.129.107.145`**（不是 localhost），脚本默认 `--base-url` 已指向它：
 
-这是**最推荐**的方式，避免模型名称不匹配问题。
+| 端口 | 模型 | 用途 |
+|---|---|---|
+| `8001` | Qwen3.5-27B | 教师，造数据 |
+| `8002` | 未微调 Qwen3-VL-2B | 基线，做对照 |
+
+> 图片路径也是这台 Linux 机上的 `/home/charles/mycode/sft+rl/dataset/...`，因此调用 vLLM、读图的脚本（①③④）要在这台机上跑。
 
 ---
 
-### 方式一：通过命令行参数指定
+## 命令速查（从零到训练集）
 
-生成入口 `01_generate.py` 支持 `--model` 和 `--base-url` 参数：
-
-```bash
-python 01_generate.py \
-  --model Qwen/Qwen3-VL-32B-Instruct \
-  --base-url http://10.129.107.145:8001/v1
-```
-
-### 方式二：通过环境变量设置
+前提：图像数据集在 `--dataset-root`（默认 `dataset/`）下，在那台 Linux 机上执行。每步细节见对应章节。
 
 ```bash
-# 设置环境变量
-export VLLM_MODEL=Qwen/Qwen3-VL-32B-Instruct
+# Step 0. 起服务：教师(8001) + 未微调基线(8002)，命令见「起 vLLM 服务」
 
-# 脚本会自动读取
-python 01_generate.py
+# ① 构造数据(三阶段并行)，结束后自动出一次体检报告
+python 01_generate.py --datasets "LEVIR-CD+,SECOND" --num-images 1000
+
+# ② 体检(①末尾已自动跑；想单独再看就这条)
+python -c "from src import health; health.report(health.load('outputs/03_answers_sft.jsonl'))"
+
+# ③ 切 train/val（baseline 和训练都读它，所以排在前面）
+python 03_convert.py --val-ratio 0.05 --image-root /your/abs/path/to/dataset
+
+# ④ 未微调模型在 val 上的基线预测
+python 05_baseline.py            # 读 val.jsonl、打 8002、写 outputs/baseline/val_pred.jsonl
+
+# ⑤ 人工审核 + 多模型对比(浏览器 http://127.0.0.1:8008)
+python 02_review.py \
+  --predictions 2B未微调=outputs/baseline/val_pred.jsonl \
+  --predictions 教师=outputs/baseline/val_pred2.jsonl \
+  --predictions 2B微调后=outputs/baseline/val_pred3.jsonl
+
+# ⑥ SFT 训练(仅 Linux+GPU；超参改脚本顶部常量)
+python 04_train.py
 ```
 
-### 模型名称优先级
+**几个要点：**
 
-```
-用户指定 --model > 环境变量 VLLM_MODEL > 自动探测 > 默认值
-```
+- **`--num-images` 是"抽几张图"，不是"生成几条样本"。** 每张图出 2–5 问、每问 1 答，样本数 ≈ 图数 × 3 上下。
+- **③ 排在 ④ 之前**：baseline(④) 和训练(⑥) 都读 `outputs/sft/{val,train}.jsonl`，所以先切。
+- **体检是诊断不是闸门**：真正的质量闸是 ⑤ 的人工审核；红线只卡分布塌缩。
+- **训完做"未微调 vs 微调"对比**：把合并后的学生权重另起一个服务，`python 05_baseline.py --base-url http://10.129.107.145:<port>/v1` 重出预测，再把多个预测文件一起喂给 ⑤。
 
 ---
 
-## 启动vLLM服务
+## 起 vLLM 服务
 
-### 推荐配置（实测可用）
+### 教师模型（Qwen3.5-27B，端口 8001）
 
-适用于 Qwen3.5-27B / Qwen3-VL 系列，2 卡 tensor parallel：
+造数据用。Qwen3.5-27B / Qwen3-VL 系列，2 卡 tensor parallel（实测可用）：
 
 ```bash
 CUDA_VISIBLE_DEVICES=1,2 \
@@ -82,35 +110,24 @@ vllm serve Qwen/Qwen3.5-27B \
   --port 8001
 ```
 
-关键参数：
-
 | 参数 | 作用 |
 |---|---|
-| `--mm-encoder-tp-mode data` | 多模态视觉编码器使用 data parallel，多卡下吞吐更高 |
-| `--mm-processor-cache-type shm` | 图像预处理结果走共享内存缓存，重复访问同图时命中 |
-| `--reasoning-parser qwen3` | 启用 Qwen3 思考链解析；流水线侧可通过 `enable_thinking=False` 关掉思考避免输出截断 |
-| `--enable-prefix-caching` | 相同前缀的 prompt 复用 KV cache，对模板高度重复的本项目显著提速 |
-| `--max-model-len 8192` | **总长度上限(图像 token + prompt + 输出),勿低于 8192**。遥感图编码常占 1000~3000+ token，若设成 4096 会挤压输出空间，导致答案被截断/漏 `</answer>`（见 [数据问题记录 #7](DATA_QUALITY_LOG.md)）。脚本侧 `max_tokens` 已设 2048 与之配合 |
+| `--mm-encoder-tp-mode data` | 视觉编码器用 data parallel，多卡吞吐更高 |
+| `--mm-processor-cache-type shm` | 图像预处理走共享内存缓存，重复访问同图命中 |
+| `--reasoning-parser qwen3` | 启用 Qwen3 思考链解析（流水线侧已 `enable_thinking=False` 关思考，避免输出截断） |
+| `--enable-prefix-caching` | 相同前缀 prompt 复用 KV cache，对本项目高度重复的模板显著提速 |
+| `--max-model-len 8192` | **总长上限(图像 token+prompt+输出)，勿低于 8192**。遥感图编码常占 1000~3000+ token，设 4096 会挤压输出导致答案截断（见 [数据问题记录 #7](DATA_QUALITY_LOG.md)）。脚本侧 `max_tokens=2048` 与之配合 |
 | `--gpu-memory-utilization 0.9` | 留 10% 显存给峰值，避免 OOM |
 
-> 流水线已默认通过 `extra_body={"chat_template_kwargs": {"enable_thinking": False}}` 关闭思考模式，正常情况下不会再出现 `finish_reason=length` 把 4096 tokens 全花在 reasoning 上的问题。详见 [常见问题排查](#常见问题排查)。
-
-### 使用Swift部署（备选）
-
-```bash
-swift deploy --model Qwen/Qwen3.5-27B \
-  --port 8001 \
-  --infer-backend vllm
-```
-
+> 流水线默认 `extra_body={"chat_template_kwargs": {"enable_thinking": False}}` 关闭思考，正常不会再出现 `finish_reason=length` 把 token 全花在 reasoning 上。
+>
+> 备选：`swift deploy --model Qwen/Qwen3.5-27B --port 8001 --infer-backend vllm`。
 
 ### 基线小模型（未微调 Qwen3-VL-2B，端口 8002）
 
-给微调模型做对照用：把**未微调的原始 Qwen3-VL-2B**（与学生同款基座）单独起在 **8002**，
-供 `05_baseline.py` 跑基线预测。2B 很小，单卡足够、显存占比给低即可（可与别的服务共卡）。
+给微调模型做对照：未微调原始 Qwen3-VL-2B（与学生同款基座）单独起在 8002，供 `05_baseline.py` 跑基线预测。2B 很小，单卡足够、显存占比给低（可与别的服务共卡）：
 
 ```bash
-# 选一张空闲卡（按需改 CUDA_VISIBLE_DEVICES）
 CUDA_VISIBLE_DEVICES=0 \
 vllm serve /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct \
   --served-model-name Qwen3-VL-2B-Instruct \
@@ -123,27 +140,21 @@ vllm serve /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct 
   --port 8002
 ```
 
-> - `--enforce-eager`：关 CUDA graph，避免 Qwen3-VL 在 V1 引擎下混批触发 deepstack 缓冲越界
->   （`ValueError: Requested more deepstack tokens than available in buffer`）导致 EngineCore fatal、整个服务挂。
->   baseline 小批量评测已验证可跑；慢一点但最省心。大批量场景可改用 `--no-enable-chunked-prefill`（保留 graph、只禁混批）。
-> - 服务地址固定在 `http://10.129.107.145:8002/v1`（全项目服务都在这台机，不是 localhost）。
+> - **`--enforce-eager` 必加**：关 CUDA graph，避免 Qwen3-VL 在 V1 引擎下混批触发 deepstack 缓冲越界（`ValueError: Requested more deepstack tokens than available in buffer`）导致 EngineCore fatal、整个服务挂。小批量评测已验证可跑；慢一点但最省心。大批量可改用 `--no-enable-chunked-prefill`（保留 graph、只禁混批）。
 > - 模型名不用记：`05_baseline.py` / `VLMClient` 会自动探测 `/v1/models` 返回的名字。
-> - 微调训练完成后，把**合并后的学生权重**用同样的命令换路径起一个服务（端口随意），
->   再 `python 05_baseline.py --base-url http://10.129.107.145:<port>/v1`，即可得到"微调学生"的预测，
->   喂给 `02_review.py --predictions` 和教师答案并排对比。
+> - 训练完成后，把**合并后的学生权重**用同样命令换路径起一个服务（端口随意），即可再跑一遍 `05_baseline.py` 得到"微调学生"的预测。
 
 ---
 
-## 生成流程（01_generate.py）
+## ① 构造数据 `01_generate.py`
 
-生成由单一入口 `01_generate.py` 完成，内部三阶段并行推进（逻辑在 `src/generation.py`）：
-描述 → 出题 → 答案，结束后自动跑一次只读体检报告。下面分阶段说明每一步在做什么、产出什么。
+单一入口，内部三阶段并行推进（逻辑在 `src/generation.py`）：描述 → 出题 → 蒸馏答案，结束后自动跑一次只读体检。三个阶段不能单独运行，参数全挂在 `01_generate.py` 上。
 
 ```bash
-# 基础用法：默认 LEVIR-CD+ 500 + SECOND 500，每图 2-5 问
+# 默认：LEVIR-CD+ 500 + SECOND 500，每图 2–5 问
 python 01_generate.py
 
-# 小规模冒烟：每个数据集各抽 2 张
+# 小规模冒烟：每数据集各抽 2 张
 python 01_generate.py --samples-per-dataset 2
 
 # 全局混合随机采样 + 纳入 EBD
@@ -153,207 +164,360 @@ python 01_generate.py --datasets "EBD,LEVIR-CD+,SECOND" --num-images 50
 python 01_generate.py --no-health-check
 ```
 
-> 三个阶段不再是独立脚本，无法单独运行；参数全部挂在 `01_generate.py` 上（见 [参数详解](#参数详解)）。
+### 参数
 
-### Phase 1: 生成受控图像描述（内部）
-
-让教师模型先对每张图像生成保守、客观的描述，作为后续问答的"证据边界"。
-
-**输出格式** (`outputs/01_descriptions.jsonl`):
-```json
-{
-  "image_path": "/path/to/image.png",
-  "dataset": "LEVIR-CD+",
-  "description": "1. 场景类型：城市建成区...",
-  "generated_at": "2025-01-23T10:30:00"
-}
-```
-
-### Phase 2: 生成多样化问题（内部）
-
-基于图像描述生成 7 类 VQA 问题（existence / location / spatial_relation / attribute / counting / unanswerable / ambiguous）。每张图按**软配额**（`src/sampling.py`）分配一份"建议类型清单"注入 prompt，使全局类型比例贴近目标、不易塌缩；模型对不适合的图可跳过某类型。
-
-**输出格式** (`outputs/02_questions.jsonl`):
-```json
-{
-  "image_path": "/path/to/image.png",
-  "dataset": "LEVIR-CD+",
-  "description": "...",
-  "questions": [
-    {"question_type": "existence", "question": "图像中是否有水体？"},
-    {"question_type": "location", "question": "道路位于图像哪个区域？"}
-  ],
-  "generated_at": "2025-01-23T10:30:00"
-}
-```
-
-### Phase 3: 纯蒸馏答案生成（内部）
-
-生成最终的 SFT 训练数据。**把"图像 + 问题"直接交给教师模型，原样收下回答**——不套 `<analysis>`/`<answer>` 格式、不分 analysis/direct、不做格式校验（`ANSWER_DISTILL_PROMPT`），而且蒸馏 prompt 本身就是原问题文本，不再额外包任何任务说明。连 Phase 1 描述也不传，纯靠教师看图作答。
-
-**输出格式** (`outputs/03_answers_sft.jsonl`):
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "<image>\n图像中是否有水体？"
-    },
-    {
-      "role": "assistant",
-      "content": "有。图像左下角可见一片深色水域，边界清晰。"
-    }
-  ],
-  "images": ["/path/to/image.png"],
-  "meta": {
-    "task_type": "vqa_distill",
-    "question_type": "existence",
-    "source_dataset": "LEVIR-CD+"
-  }
-}
-```
-
-> `assistant.content` 是教师的原始自然回答，长度/风格由教师决定；`meta` 不再有 `answer_mode` / `auto_validation` 字段。
-
----
-
-## 参数详解
-
-参数全部挂在 `01_generate.py` 上（完整见 `python 01_generate.py -h`）。
-
-### 模型 / 连接
+完整见 `python 01_generate.py -h`。
 
 | 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--model` | 自动探测 | 模型名称，如 `Qwen/Qwen3-VL-32B-Instruct` |
-| `--base-url` | `http://10.129.107.145:8001/v1` | vLLM 服务地址 |
-| `--retries` | `3` | API 调用失败后的最大重试次数 |
-
-### 采样
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
+|---|---|---|
+| `--model` | 自动探测 | 模型名，如 `Qwen/Qwen3-VL-32B-Instruct`；见 [模型名探测](#模型名探测) |
+| `--base-url` | `http://10.129.107.145:8001/v1` | 教师 vLLM 服务地址 |
+| `--retries` | `3` | 单条 API 失败最大重试次数 |
 | `--dataset-root` | `dataset` | 数据集根目录 |
 | `--datasets` | `LEVIR-CD+,SECOND` | 要处理的数据集，逗号分隔 |
 | `--num-images` | `None` | 全局混合随机采样总数；传入后优先于 `--samples-per-dataset` |
-| `--samples-per-dataset` | `LEVIR-CD+=500,SECOND=500` | 每数据集采样数；可写单一整数对所有数据集生效 |
+| `--samples-per-dataset` | `LEVIR-CD+=500,SECOND=500` | 每数据集采样数；也可写单一整数对所有数据集生效 |
 | `--ebd-per-disaster` | `None` | EBD 按 7 种灾害子目录各抽 N 张 |
 | `--seed` | `42` | 采样 + 软配额分配的随机种子 |
 | `--manifest` / `--refresh-manifest` | — | 复用 / 强制重抽样本清单 |
-
-### 出题 / 答案
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--num-questions` | `5` | 每张图问题数上限（软配额在 [min, num] 区间分配类型） |
-| `--min-questions` | `2` | 每张图问题数下限 |
-| `--direct-ratio` | `0.3` | **已废弃**：纯蒸馏不再分 analysis/direct，此参数不再生效（保留仅为兼容旧命令行） |
-
-### 运行 / 输出
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
+| `--num-questions` / `--min-questions` | `5` / `2` | 每张图问题数上 / 下限（软配额在区间内分配类型） |
 | `--max-concurrency` | `24` | 三阶段共用的最大并发请求数 |
-| `--output-dir` | `outputs` | 输出目录（描述/问题/答案/stats/manifest 都落在这里） |
+| `--output-dir` | `outputs` | 输出目录（描述/问题/答案/stats/manifest 都落这里） |
 | `--no-health-check` | 关 | 跳过生成结束后的自动体检 |
+| `--direct-ratio` | `0.3` | **已废弃**：纯蒸馏不分 analysis/direct，不再生效（仅兼容旧命令行） |
+
+> 各阶段 temperature 在 `src/prompts.py` / 对应脚本里：描述 0.3、出题 0.4、答案 0.3。
+
+### 默认采样规模
+
+| 数据集 | 数量 | 说明 |
+|---|---|---|
+| LEVIR-CD+ | 500 | 城市建筑与道路 |
+| SECOND | 500 | 多类地表覆盖 |
+| **合计** | **1000 张** | 每图 2–5 问，预计 **2000–5000 个 VQA 样本** |
+
+默认不启用 EBD（灾后场景）。需要时显式传 `--datasets "LEVIR-CD+,SECOND,EBD" --samples-per-dataset "LEVIR-CD+=500,SECOND=500,EBD=140" --ebd-per-disaster 20`。
+
+### 运行行为
+
+- **问题数自适应**：`2–5` 区间内由模型按图像内容决定——简单图（纯水体/单一植被）2 个，丰富图最多 5 个，超出硬截断到 5，不会凑数重复。
+- **三阶段调度**：Phase 1 出某图描述后立刻交 Phase 2，两者并行；Phase 3 等前两者全部完成后统一开始；三阶段共用一个并发上限（默认 24）。
+- **断点续跑**：首次把采样固化到 `outputs/sample_manifest.jsonl`，后续默认复用做续跑，不重新随机；要重抽传 `--refresh-manifest`。续跑以**图像绝对路径**为唯一标识，移动数据集目录会让旧记录失效。
+- 三阶段完成后自动跑一次只读体检（`--no-health-check` 可关）。
+
+### 三阶段产出
+
+**Phase 1 — 受控图像描述**（`outputs/01_descriptions.jsonl`）：教师先对每图生成保守客观的描述，作为后续问答的"证据边界"。
+
+```json
+{"image_path": "/path/to/image.png", "dataset": "LEVIR-CD+",
+ "description": "1. 场景类型：城市建成区...", "generated_at": "..."}
+```
+
+**Phase 2 — 多样化问题**（`outputs/02_questions.jsonl`）：基于描述生成 7 类 VQA 问题（existence / location / spatial_relation / attribute / counting / unanswerable / ambiguous）。每图按**软配额**（`src/sampling.py`）注入"建议类型清单"，使全局类型比例贴近目标、不易塌缩；模型可对不适合的图跳过某类型。
+
+```json
+{"image_path": "...", "dataset": "LEVIR-CD+", "description": "...",
+ "questions": [{"question_type": "existence", "question": "图像中是否有水体？"}]}
+```
+
+**Phase 3 — 纯蒸馏答案**（`outputs/03_answers_sft.jsonl`，最终 SFT 数据）：把"图像 + 问题"直接交给教师，**原样收下回答**——不套 `<analysis>`/`<answer>`、不分 analysis/direct、不做格式校验，蒸馏 prompt 就是原问题文本，连 Phase 1 描述也不传。
+
+```json
+{"messages": [
+   {"role": "user", "content": "<image>\n图像中是否有水体？"},
+   {"role": "assistant", "content": "有。图像左下角可见一片深色水域，边界清晰。"}],
+ "images": ["/path/to/image.png"],
+ "meta": {"task_type": "vqa_distill", "question_type": "existence", "source_dataset": "LEVIR-CD+"}}
+```
+
+> `assistant.content` 是教师原始自然回答，长度/风格由教师决定；`meta` 不含 `answer_mode` / `auto_validation`。
 
 ---
 
-## 常见问题排查
+## ② 数据体检 `src/health.py`
 
-### Q: 连接vLLM失败？
+发布前的数据治理：体检（只读，给报告 + 红线告警）+ 按配比降采样。体检由 `01_generate.py` 末尾**自动调用**；降采样在 `03_convert.py --rebalance` 时触发。
 
-**检查服务是否启动：**
 ```bash
-curl http://10.129.107.145:8001/v1/models
+# 单独再看一次（配比/归一化熵/问题前缀塌缩/答案模板化/长度统计/编码自检）
+python -c "from src import health; health.report(health.load('outputs/03_answers_sft.jsonl'))"
 ```
 
-**确认端口正确：**
+**红线判定**（`report()` 返回 True 即触发，`01_generate.py` 据此打印告警）：
+
+| 维度 | 红线 |
+|---|---|
+| question_type 归一化熵 | < 0.7（类型分布失衡） |
+| 问题前缀 Top-3 合计 | > 60%（Question Distribution Collapse） |
+| 单一答案开头占比 | > 20%（过度模板化） |
+| 答案长度 p90 | > 120（整体报告化） |
+
+> `src/health.py` 已按纯蒸馏形态改写：问题侧关注分布与塌缩，答案侧只关注模板化和长度，不再评估拒答率或"是否按护栏回答"。
+
+---
+
+## ③ 切训练 / 评测集 `03_convert.py`
+
+把给人看的 `03_answers_sft.jsonl` 转成 `04_train.py` 能直接读的 `train.jsonl` / `val.jsonl`（逻辑在 `src/convert.py`，Win/Linux 都能跑）。
+
 ```bash
-# 如果服务在8000端口
-python 01_generate.py --base-url http://localhost:8000/v1
+python 03_convert.py \
+  --image-root /your/abs/path/to/dataset \  # 训练机上 dataset 真实绝对路径，到 Linux 上必填
+  --val-ratio 0.05 \
+  --rebalance \                             # 可选：按配比降采样，主要把 counting 压到 5%
+  --check-images                            # 图片在本机时建议开，校验每张图可打开
 ```
 
-### Q: 模型名称不匹配？
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `--src` | `outputs/03_answers_sft.jsonl` | 输入答案 jsonl |
+| `--out-dir` | `outputs/sft` | 输出目录 |
+| `--old-root` | `/home/charles/mycode/sft+rl/dataset` | 被替换的原图片根目录 |
+| `--image-root` | 空 | **训练机上的图片根目录**；留空不改路径（到 Linux 务必传） |
+| `--val-ratio` | `0.02` | 验证集比例 |
+| `--rebalance` | 关 | 转换前按目标配比降采样（主要压 counting）；建议人工审核之后再开 |
+| `--check-images` | 关 | 校验每张图是否存在（需图片在本机） |
+| `--keep-warning` | 关 | **纯蒸馏下基本 no-op**：`auto_validation` 已移除，过滤默认全保留 |
 
-**查看vLLM实际加载的模型：**
-```bash
-curl -s http://10.129.107.145:8001/v1/models | python -m json.tool
+> 路径重映射**始终输出 POSIX 斜杠**，即便在 Windows 上跑，产出路径到 Linux 也直接可用。
+
+### 为什么需要这一步？
+
+生成格式（`messages` + 平行 `images` + `<image>` 占位符）是 **LLaMA-Factory / ShareGPT 风格**，LLaMA-Factory 能直接读，但 **Unsloth 用的是另一套（结构化 content）**，所以要转一次。差异：
+
+| 维度 | 生成格式 | Unsloth 要的 | 不转的后果 |
+|---|---|---|---|
+| 图像位置 | `content` 里 `<image>` 占位符 + 独立 `images` 字段 | `content` 列表里的结构化图像元素 | `<image>` 被当普通文本，图喂不进 |
+| `content` 类型 | 字符串 | 列表（text/image 元素） | collator 解析不到图像 token |
+| 图片引用 | 文件路径字符串 | PIL/可解析图对象 | 需 `Image.open` 加载（脚本内做） |
+| 路径根目录 | 生成机 `/home/charles/...` | 训练机真实路径 | 不重映射找不到图 |
+
+Unsloth 在内存里构造的目标格式（`04_train.py` 自动做，不用手写）：
+
+```python
+[{"role": "user", "content": [
+    {"type": "image", "text": None, "image": <PIL.Image>},
+    {"type": "text",  "text": "图像中是否有水体？"}]},
+ {"role": "assistant", "content": [{"type": "text", "text": "有。..."}]}]
 ```
 
-然后用 `--model` 参数指定正确的模型名。
+---
 
-### Q: 断点续传不生效？
+## ④ 基线预测 `05_baseline.py`
 
-断点续传依赖 **图像绝对路径** 作为唯一标识。如果移动了数据集目录，旧的已处理记录会失效。
+用未微调原始模型在 val 上跑一遍，作为微调对照。发给基线的是**裸问题**（只有 question + 图，不是蒸馏 prompt），与微调学生的推理输入完全一致，对照才公平。支持并发 + 断点续跑（按 `image|question` 去重）。
 
-解决：删除输出文件重新运行，或手动过滤已处理的。
+```bash
+python 05_baseline.py            # 读 val.jsonl、打基线 8002、写 outputs/baseline/val_pred.jsonl
+```
 
-### Q: 教师答案质量不稳定 / 偶尔跑题？
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `--src` | `outputs/sft/val.jsonl` | 测试集 jsonl（每行 `{image, question, answer, ...}`） |
+| `--out` | `outputs/baseline/val_pred.jsonl` | 预测输出 |
+| `--base-url` | `http://10.129.107.145:8002/v1` | 基线服务地址（换成微调学生服务即可生成学生预测） |
+| `--model` | 自动探测 | 模型名 |
+| `--max-concurrency` | `16` | 并发请求数 |
+| `--max-tokens` | `1024` | 单条回答上限 |
+| `--temperature` | `0.0` | 默认贪心，结果可复现 |
+| `--limit` | `None` | 只跑前 N 条（冒烟用） |
 
-纯蒸馏不再做格式校验，答案质量完全取决于教师模型（Qwen3.5-27B）。`meta` 里也不再有 `auto_validation`。把关手段是 [人工抽检](#人工审批前端)——发现系统性问题就回去改问题分布、换更强教师，或在必要时重新定义蒸馏策略。
+输出每行：`{image, question, question_type, reference(教师答案), prediction(本模型回答)}`，直接喂给 ⑤ 的 `--predictions` 做对比。
 
-### Q: 如何调整生成的temperature？
+---
 
-编辑 `src/prompts.py` 或直接修改对应脚本中的 `temperature` 参数：
-- 描述生成: 0.3 (保守)
-- 问题生成: 0.4 (适度多样化)
-- 答案生成: 0.3 (稳定作答)
+## ⑤ 人工审核 + 多模型对比 `02_review.py`
+
+SFT 数据进训练前的最后一步、也是必走一步——自动质检只能拦格式与硬规则错误，幻觉/错答/计数误差只能靠人工。轻量本地 Web 工具（逻辑在 `src/review.py`），两个模式：① 人工审批蒸馏数据，② 多模型输出对比。
+
+```bash
+# 最简：全用默认值，仅人工审批
+python 02_review.py
+
+# 带多模型对比：--predictions 可多次传入，每次 "标签=路径"，前端按顺序每模型一列并排
+python 02_review.py \
+  --predictions 2B未微调=outputs/baseline/val_pred.jsonl \
+  --predictions 教师=outputs/baseline/val_pred2.jsonl \
+  --predictions 2B微调后=outputs/baseline/val_pred3.jsonl
+# 浏览器打开 http://127.0.0.1:8008，Ctrl+C 停止
+```
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `--input` | `outputs/03_answers_sft.jsonl` | 要审核的 SFT JSONL |
+| `--reviews` | `outputs/manual_reviews.jsonl` | 审核结果落盘（不存在自动创建） |
+| `--predictions` | 无 | 模型预测 JSONL（`05_baseline.py` 风格），写成 `标签=路径`，**可多次传入**；只给路径时用文件名当标签 |
+| `--host` | `127.0.0.1` | 监听地址；要别的机器访问改 `0.0.0.0`（无鉴权，注意网络隔离） |
+| `--port` | `8008` | 监听端口 |
+
+### 界面与行为
+
+- **模式① 人工审批**：逐条 `通过 / 不通过` + 备注，可按 `未审批 / 全部 / 仅通过 / 仅不通过` 筛选。结果**幂等覆盖**写入 `manual_reviews.jsonl`，同一样本以最后一次为准。
+- **模式② 多模型对比**：按 `--predictions` 顺序每模型一列并排（按 `image|question` 对齐）。自动只显示"至少有一个模型出了预测"的样本；某模型对某条无预测则该列显示「（无预测）」。不传 `--predictions` 时模式②为空，模式①不受影响。
+- **样本主键** = `image_path | question`：图片路径或问题文本一变，旧审批记录就"对不上"被视为未审。
+- **新增样本要重启**：启动时一次性加载，运行期不重读 `--input`。
+- **图片按 `images[0]` 路径直接读**，相对路径相对于启动目录——建议在项目根启动。
+
+### 下游消费
+
+把 `manual_reviews.jsonl` 与 `03_answers_sft.jsonl` 按 `id`（即 `image_path|question`）join，仅留 `decision == "approved"`，即得人工审核通过的集合用于训练。
+
+---
+
+## ⑥ SFT 训练 `04_train.py`
+
+用 [Unsloth](https://unsloth.ai/docs) 对 Qwen3-VL 做视觉 LoRA 微调，**仅 Linux+GPU**。`04_train.py` 是**扁平脚本**（照搬官方 Qwen3-VL Vision notebook 结构，刻意不封装、无命令行参数），**改超参直接改脚本顶部各 section 常量**。
+
+### 装依赖
+
+```bash
+pip install -r requirements-train.txt   # 先按 Unsloth 官方指引装好匹配的 torch+CUDA
+swanlab login                           # 训练用 SwanLab 看 loss/lr/显存曲线，首次登录一次
+```
+
+> `04_train.py` 已接入 `SwanLabCallback`，自动推曲线到看板（项目/实验名见脚本顶部 `SWANLAB_PROJECT` / `SWANLAB_EXPERIMENT`）。想纯离线给回调加 `mode="local"`。
+
+### 运行
+
+```bash
+# 冒烟：取消脚本里 `# max_steps = 30` 那行注释(只跑 30 步)，确认数据/显存/模板都通
+python 04_train.py
+
+# 正式：把 max_steps 注释回去，按需调 num_train_epochs 等常量，再跑
+python 04_train.py
+```
+
+脚本分六步，参数就近注释：
+
+| 步骤 | 关键常量 | 说明 |
+|---|---|---|
+| ① 加载模型 | `MODEL_NAME` / `load_in_4bit` | 基座 Qwen3-VL-2B（默认 16bit LoRA）；显存紧设 `load_in_4bit=True` 走 QLoRA |
+| ② 挂 LoRA | `r` / `lora_alpha` / `finetune_vision_layers` | 见下「起步配方」 |
+| ③ 准备数据 | `convert_to_conversation` | 每行 `{image,question,answer}` 转 Unsloth 对话 + `Image.open` 读图 |
+| ④ 训练器 | `SFTConfig(...)` | 批大小/时长/学习率/验证/取最佳 |
+| ⑤ 训练 | — | `trainer.train()` |
+| ⑥ 保存 | `OUTPUT_DIR` | 存 LoRA；末尾有合并 16bit 的可选注释行 |
+
+- 用 `FastVisionModel` + `UnslothVisionDataCollator`，**只训 LoRA 适配器**，基座冻结。
+- 数据是 eager 列表（一次读进内存），几千张没问题；规模很大时改 `with_transform` 惰性读图（脚本有注释）。
+
+### 起步配方（~3700 条规模，抗遗忘版）
+
+约 3700 条训练样本，**有效 batch = `per_device_train_batch_size` × `gradient_accumulation_steps` = 16**，每 epoch ≈ 230 步。窄数据（单一遥感 VQA）上，太大的 lr/容量/训练量会把 2B 整体往这套数据上拽、牺牲通用能力，故默认按抗遗忘调过：
+
+| 常量 | 默认 | 抗遗忘考量 |
+|---|---|---|
+| `num_train_epochs` | `1` | 窄数据 1 epoch 往往够，配合"取最佳"防过拟合 |
+| `per_device_train_batch_size` / `gradient_accumulation_steps` | `2` / `8` | 有效 batch 16；OOM 就改 1 / 16，乘积不变 |
+| `learning_rate` | `5e-5` | **从 2e-4 降下来**：2e-4 在窄数据 1 epoch 就推得很远，是遗忘主因 |
+| `r` | `8` | **从 16 降到 8**：直接砍可改写子空间，抗遗忘最直接旋钮；欠拟合再升回 16/32 |
+| `lora_alpha` | `16` | 等效放大 alpha/r = 2.0；想更抗遗忘降到 8（ratio=1），代价学得慢 |
+| `lora_dropout` | `0.05` | 一点正则 |
+| `finetune_vision_layers` | `False` | **关视觉塔**：3700 张遥感图训它易破坏对自然图理解，本任务也不靠学新视觉特征 |
+| `load_in_4bit` | `False` | 16bit 普通 LoRA；显存紧设 True 走 QLoRA |
+
+验证与"取最佳"（已默认开启，抗遗忘关键，均在 `SFTConfig` 内）：
+
+| 常量 | 默认 | 作用 |
+|---|---|---|
+| `eval_strategy` / `eval_steps` | `"steps"` / `10` | 每 10 步在 val 上算 loss，画出过拟合拐点 |
+| `load_best_model_at_end` | `True` | 训练结束**回滚到 val loss 最低的 checkpoint** |
+| `metric_for_best_model` / `greater_is_better` | `"eval_loss"` / `False` | 以验证 loss 选最佳 |
+| `save_strategy` / `save_steps` | `"steps"` / `10` | 必须与 eval 对齐，否则最佳点可能没存下 |
+
+> `save_steps=10` 存得勤，靠 `save_total_limit=3` 控盘（LoRA 才几十 MB）。当前**未开早停**——`load_best_model_at_end` 只回滚不提前停；要早停加 `EarlyStoppingCallback`。仍嫌遗忘重，最治本的是**混入回放数据**（5%~20% 通用图文/纯文本指令），比调超参更有效。
+
+---
+
+## 训练后：推理 / 合并 `07` / `06`
+
+| 目的 | 用 | 命令 |
+|---|---|---|
+| 本地快速验效果 | `07_infer_lora.py`（直接用 LoRA adapter） | 见下 |
+| 部署 / 交付完整模型 | `06_merge_lora.py`（合并成 16bit） | 见下 |
+| 比较不同 checkpoint | 两者都把 `--adapter` 指向某个 `checkpoint-*` 即可 | — |
+
+```bash
+# 方案一：直接用 adapter 推理
+python 07_infer_lora.py \
+  --adapter outputs/qwen3vl-sft-lora \
+  --image /home/charles/mycode/sft+rl/dataset/LEVIR-CD+/train/B/train_369.png \
+  --question "图像右上角建筑物的屋顶呈现什么颜色？"
+
+# 方案二：合并成完整 16bit 模型目录
+python 06_merge_lora.py \
+  --adapter outputs/qwen3vl-sft-lora \
+  --out outputs/qwen3vl-sft-lora_merged
+```
+
+`07_infer_lora.py` 常用参数：`--max-new-tokens 256`、`--temperature 0.0`（>0 才采样）、`--min-p 0.1`、`--load-in-4bit`（仅 4bit 流程开）。
+`06_merge_lora.py`：`--out` 默认 `<adapter>_merged`，`--load-in-4bit` 仅 4bit 流程开。
+
+---
+
+## 常见问题
+
+### 模型名探测
+
+调用 vLLM 的脚本启动时自动调 `/v1/models` 探测服务端实际加载的模型名，**最推荐**，避免名称不匹配。优先级：
+
+```
+用户 --model > 环境变量 VLLM_MODEL > 自动探测 > 默认值
+```
+
+```bash
+curl -s http://10.129.107.145:8001/v1/models | python -m json.tool   # 看实际加载的模型
+```
+
+### 连接 vLLM 失败
+
+```bash
+curl http://10.129.107.145:8001/v1/models          # 确认服务在
+python 01_generate.py --base-url http://localhost:8000/v1   # 确认端口
+```
+
+### 断点续传不生效
+
+依赖**图像绝对路径**作唯一标识。移动数据集目录会让旧记录失效——删输出文件重跑，或手动过滤已处理的。
+
+### 教师答案质量不稳定 / 偶尔跑题
+
+纯蒸馏不做格式校验，质量取决于教师（Qwen3.5-27B），`meta` 也无 `auto_validation`。把关靠 [人工审核](#-人工审核--多模型对比-02_reviewpy)——发现系统性问题就回去改问题分布、换更强教师，或重定义蒸馏策略。
 
 ---
 
 ## 高级用法
 
-### 1. 分数据集并行处理
+### 分数据集并行处理
 
-用不同的 `--output-dir` 把各数据集隔离到独立目录，互不干扰、可同时跑：
+用不同 `--output-dir` 把各数据集隔离，互不干扰、可同时跑：
 
 ```bash
-# 终端1：处理EBD数据集
-python 01_generate.py --datasets EBD --num-images 50 --output-dir outputs/ebd
-
-# 终端2：处理LEVIR-CD+数据集
+python 01_generate.py --datasets EBD       --num-images 50 --output-dir outputs/ebd
 python 01_generate.py --datasets LEVIR-CD+ --num-images 50 --output-dir outputs/levir
 ```
 
-### 2. 自定义Prompt模板
+### 自定义 Prompt 模板
 
-编辑 `src/prompts.py` 中的模板：
+编辑 `src/prompts.py` 中的模板（如 `DESCRIPTION_PROMPT`）。注：纯蒸馏的 `ANSWER_DISTILL_PROMPT` 就是原问题文本本身，不主动约束教师——若要"纯模仿教师分布"的 SFT，不建议往这里加包装语或护栏；想换风格直接换 `--model` / `--base-url`。`src/validator.py` 那套旧格式校验已不再调用。
 
-```python
-# 修改描述生成的要求
-DESCRIPTION_PROMPT = """
-你是一位专业的遥感图像解译人员...
-[你的自定义内容]
-"""
-```
+### 添加新数据集
 
-### 3. 添加新的数据集支持
-
-编辑 `src/scanner.py` 中的 `DATASET_CONFIGS`:
+编辑 `src/scanner.py` 的 `DATASET_CONFIGS`：
 
 ```python
 DATASET_CONFIGS = {
     "MY_DATASET": {
         "glob_patterns": ["**/images/*.png"],
-        "image_filter": lambda p: True,  # 不过滤
+        "image_filter": lambda p: True,
     },
-    # ...
 }
 ```
 
-### 4. 调整蒸馏 prompt
-
-纯蒸馏没有格式校验。当前 `src/prompts.py` 的 `ANSWER_DISTILL_PROMPT` 就是原问题文本本身，不主动约束教师回答行为：
-- 如果你就是要做“纯模仿教师回答分布”的 SFT，不建议继续往这里加任何包装语或护栏。
-- 想换教师风格，直接换 `--model` / `--base-url` 指向更强或不同的模型。
-
-> `src/validator.py` 那套旧格式校验 generation 已不再调用，改它不影响纯蒸馏产出。
-
-### 5. 快速检查数据质量
+### 快速抽看数据质量
 
 ```bash
-# 抽看几条教师答案，确认是自然口吻、无 <analysis>/<answer> 残留
 python -c "
 import json
 with open('outputs/03_answers_sft.jsonl') as f:
@@ -365,400 +529,3 @@ with open('outputs/03_answers_sft.jsonl') as f:
         print('-' * 40)
 "
 ```
-
----
-
-## 完整运行流程（从零到训练集）
-
-整条链路按实际顺序：**起服务 → ① 构造数据 → ② 数据报告 → ③ 切训练/评测集 → ④ 小模型 baseline → ⑤ 人工审核 + 模型对比 → ⑥ 训练**。涉及入口 `01_generate / 03_convert / 05_baseline / 02_review / 04_train`。所有 vLLM 服务都在 `10.129.107.145`（教师 :8001、基线 :8002，详见 [启动vLLM服务](#启动vllm服务)）。
-
-> 前提：图像数据集在 `--dataset-root`（默认 `dataset/`）下。下面命令在那台 Linux 机上跑（图片和服务都在那）。
-
-```bash
-# ======== Step 0. 起两个服务：教师(8001) + 未微调基线(8002) ========
-# 教师 Qwen3.5-27B(造数据用)、基线 Qwen3-VL-2B(对照用)各起一个,命令见"启动vLLM服务"节
-
-# ======== ① 构造数据(三阶段并行)。结束后自动出一次数据报告 ========
-python 01_generate.py \
-  --dataset-root dataset \
-  --datasets "LEVIR-CD+,SECOND" \
-  --num-images 1000 \
-  --num-questions 5 --min-questions 2 \
-  --max-concurrency 24 \
-  --base-url http://10.129.107.145:8001/v1
-# 产出 outputs/03_answers_sft.jsonl(+ descriptions/questions/manifest)
-
-# ======== ② 数据报告(①末尾已自动跑一次;想单独再看就这条) ========
-python -c "from src import health; health.report(health.load('outputs/03_answers_sft.jsonl'))"
-# 看 3 条红线(类型熵/问题前缀塌缩/答案开头塌缩) + 告警(长度/越界词/残留标签)
-
-# ======== ③ 切训练/评测集(给 baseline 和训练用)。纯蒸馏默认全保留 ========
-python 03_convert.py --val-ratio 0.05
-# 产出 outputs/sft/train.jsonl 与 val.jsonl
-# 注:数据里图片路径已是训练机 Linux 路径,无需 --image-root;在别处跑才需传
-
-# ======== ④ 小模型 baseline:未微调模型在 val 上的预测,作微调对照 ========
-python 05_baseline.py
-# 默认读 val.jsonl、打基线 8002、写 outputs/baseline/val_pred.jsonl
-
-# ======== ⑤ 人工审核 + 模型对比(浏览器,两个模式) ========
-# --predictions 可多次传入,每次 "标签=路径",前端按顺序并排展示每个模型一列
-python 02_review.py \
-  --predictions 2B未微调=outputs/baseline/val_pred.jsonl \
-  --predictions 教师=outputs/baseline/val_pred2.jsonl \
-  --predictions 2B微调后=outputs/baseline/val_pred3.jsonl
-# 打开 http://127.0.0.1:8008
-#   模式① 人工审批蒸馏数据:逐条通过/不通过 -> outputs/manual_reviews.jsonl
-#   模式② 多模型输出对比:每个 --predictions 一列并排(自动只看有预测的样本)
-
-# ======== ⑥ SFT 训练(Unsloth,Qwen3-VL + LoRA,仅 Linux+GPU) ========
-# 04_train.py 扁平脚本(无命令行参数):超参直接改脚本顶部各 section 常量
-python 04_train.py
-```
-
-> 训练细节、参数与数据格式见下文 [SFT 训练（Unsloth / Qwen3-VL）](#sft-训练unsloth--qwen3-vl)。
-> **训完做"教师 vs 微调学生"对比**：把合并后的学生权重另起一个服务，
-> `python 05_baseline.py --base-url http://10.129.107.145:<port>/v1` 重出预测，再回到 ⑤ 的模式②。
-
-**几个要点：**
-
-- **`--num-images` 是"抽几张图"，不是"生成几条样本"。** 每张图出 2-5 个问题、每问 1 答，样本数 ≈ 图数 × 3 上下。
-- **② 数据报告是诊断不是闸门**：纯蒸馏没有格式校验，真正的质量闸是 ⑤ 的人工审核；红线只卡分布塌缩。`01_generate.py --no-health-check` 可关掉自动报告。
-- **③ 为什么排在 baseline 之前**：baseline(④)和训练(⑥)都读 `outputs/sft/{val,train}.jsonl`，所以先切。
-- **(可选)降采样**：`03_convert.py --rebalance` 按配比剔样本（主要压 counting）；建议人工审核之后再开，别提前降。
-
-### 默认采样规模
-
-| 数据集 | 采样数量 | 说明 |
-|--------|---------|------|
-| LEVIR-CD+ | 500 | 城市建筑与道路场景 |
-| SECOND | 500 | 多类地表覆盖场景 |
-| **合计** | **1000 张图像** | 每图 2-5 个问题，预计 **2000–5000 个 VQA 样本** |
-
-> 默认不启用 EBD（灾后场景）。若需要纳入 EBD，可显式传 `--datasets "LEVIR-CD+,SECOND,EBD" --samples-per-dataset "LEVIR-CD+=500,SECOND=500,EBD=140" --ebd-per-disaster 20`，按 7 类灾害子目录各抽 20 张。
-
-#### 问题数量自适应
-
-`--num-questions 5 --min-questions 2` 表示每张图生成 **2-5 个**问题，模型会根据图像内容自适应：
-
-- 图像内容简单（如纯水体、单一植被）→ 2 个问题即可
-- 图像内容丰富（多类地物、空间关系复杂）→ 最多 5 个问题
-- 解析后若超过 5 个会硬截断到 5 个，不会让模型为了凑数而重复
-
-#### 行为说明
-
-- Phase 1 一旦产出某张图的描述，就立刻把这张图交给 Phase 2
-- Phase 1 和 Phase 2 会并行推进
-- Phase 3 会等到 Phase 1 和 Phase 2 都全部完成后，再统一开始
-- 三个阶段共用一个并发上限，默认最多同时跑 24 个请求
-- 首次运行会把采样结果固化到 `outputs/sample_manifest.jsonl`
-- 后续默认复用同一份 manifest 做断点续跑，不会重新随机
-- 如果确实要重新抽样，显式传 `--refresh-manifest`
-- 三阶段全部完成后，会**自动跑一次只读数据体检**并打印报告（`--no-health-check` 可关）
-
-各步详情分见：数据报告/降采样 → [数据体检与降采样](#数据体检与降采样)；人工审核 + 模型对比前端 → [人工审批前端](#人工审批前端)；训练 → [SFT 训练（Unsloth / Qwen3-VL）](#sft-训练unsloth--qwen3-vl)。
-
----
-
-## 数据体检与降采样
-
-发布前的数据治理逻辑在 `src/health.py`：体检（只读，给报告+红线告警）+ 按配比降采样。
-体检由 `01_generate.py` 在生成结束后**自动调用**；降采样在 `03_convert.py --rebalance` 时触发。
-
-```bash
-# 体检（只读）：配比/归一化熵/问题前缀塌缩/答案模板化/长度统计/编码自检
-python -c "from src import health; health.report(health.load('outputs/03_answers_sft.jsonl'))"
-
-# 转换时按目标配比降采样（人工抽检后再开）：主要把 counting 压到 5%
-python 03_convert.py --rebalance --image-root /your/abs/path/to/dataset
-```
-
-**红线判定**（`report()` 返回 True 表示触发；`01_generate.py` 会据此打印告警）：
-
-| 维度 | 红线 | 纯蒸馏下是否有效 |
-|---|---|---|
-| question_type 归一化熵 | < 0.7（类型分布失衡） | ✅ 有效（问题侧，与答案格式无关） |
-| 问题前缀 Top-3 合计 | > 60%（Question Distribution Collapse） | ✅ 有效（问题侧） |
-| 单一答案开头占比 | > 20%（过度模板化） | ✅ 有效（回答形态检查） |
-| 答案长度 p90 | > 120（整体报告化） | ✅ 有效（回答形态检查） |
-
-> 当前 `src/health.py` 已按纯蒸馏形态改写：问题侧关注分布与塌缩，答案侧只关注模板化和长度形态，不再评估拒答率或“是否按护栏回答”。
-
----
-
-## 人工审批前端
-
-人工审批是 SFT 数据进入训练前的最后一步、也是必走一步。自动质检只能拦截格式与硬规则错误，对幻觉、错答、计数误差等只能依赖人工判定。仓库内置一个轻量本地审阅工具 `02_review.py`（逻辑在 `src/review.py`）来支撑这一步。
-
-### 启动
-
-```bash
-python 02_review.py \
-  --input outputs/03_answers_sft.jsonl \
-  --reviews outputs/manual_reviews.jsonl \
-  --port 8008
-```
-
-不传任何参数也可以，全用默认值：
-
-```bash
-python 02_review.py
-```
-
-启动后浏览器打开：
-
-```text
-http://127.0.0.1:8008
-```
-
-`Ctrl+C` 停止服务。
-
-### 命令行参数
-
-| 参数 | 默认值 | 含义 |
-|---|---|---|
-| `--input` | `outputs/03_answers_sft.jsonl` | 要审核的 SFT JSONL，由 `01_generate.py` 产出 |
-| `--reviews` | `outputs/manual_reviews.jsonl` | 审核结果落盘文件（不存在会自动创建） |
-| `--predictions` | 无 | 模型预测 JSONL，写成 `标签=路径`，**可多次传入**做多模型并排对比；只给路径时用文件名当标签 |
-| `--host` | `127.0.0.1` | 监听地址，默认仅本机访问；要别的机器访问改 `0.0.0.0` |
-| `--port` | `8008` | 监听端口 |
-
-### 多模型对比（模式②）
-
-`--predictions` 重复传入即可同时对比任意多个模型，前端在「② 多模型输出对比」模式下按传入顺序每个模型一列并排展示：
-
-```bash
-python 02_review.py \
-  --predictions 2B未微调=outputs/baseline/val_pred.jsonl \
-  --predictions 教师=outputs/baseline/val_pred2.jsonl \
-  --predictions 2B微调后=outputs/baseline/val_pred3.jsonl
-```
-
-- 每个 JSONL 是 `05_baseline.py` 风格（`{image, question, prediction}`），按 `image|question` 与审核样本对齐。
-- 对比模式自动只显示「至少有一个模型出了预测」的样本；某模型对某条无预测时该列显示「（无预测）」。
-- 不传 `--predictions` 时模式②为空，模式①（人工审批）不受影响。
-
-### 界面功能
-
-- **左右分栏布局**：左侧大图，右侧问题 / 答案 / 自动质检 / 审批操作；不需要上下滚页。
-- **审批操作**：单条样本进行 `通过 / 不通过` 判定，可写备注。
-- **筛选**：`未审批 / 全部 / 仅通过 / 仅不通过` 四种过滤模式。
-- **多模型对比**：模式② 按 `--predictions` 顺序并排展示每个模型一列（见上）。
-- **审批结果**：写入 `outputs/manual_reviews.jsonl`，**幂等覆盖**——同一样本多次审批以最后一次为准。
-- **吸底操作栏**：长答案在右侧滚动时，"通过/不通过"按钮始终保持在视野内。
-
-### 注意事项
-
-- **样本主键**由 `image_path | question` 拼成。一旦图片路径或问题文本变更，旧的审批记录会"对不上"被视为未审。
-- **新增样本要重启**：`02_review.py` 启动时一次性加载样本，运行期间不会自动重读 `--input` 文件，追加了新数据需要 Ctrl+C 后重启。
-- **图片相对路径**：服务端按 JSONL 里 `images[0]` 的路径直接读图，相对路径相对于 **启动 server 时的当前目录**——建议在项目根目录启动。
-- **没有鉴权**：默认绑 `127.0.0.1`，如果改 `--host 0.0.0.0` 请自行注意网络隔离。
-
-### 下游消费
-
-把 `outputs/manual_reviews.jsonl` 与 `outputs/03_answers_sft.jsonl` 按 `id`（即 `image_path|question`）join，仅保留 `decision == "approved"` 的样本，即可得到人工审核通过的 gold/silver 集合用于 SFT 训练。
-
----
-
-## SFT 训练（Unsloth / Qwen3-VL）
-
-发布集出来后，用 [Unsloth](https://unsloth.ai/docs) Core 对 Qwen3-VL 做视觉 LoRA 微调。
-两个入口：`03_convert.py`（数据处理，Win/Linux 都能跑）+ `04_train.py`（训练，**仅 Linux+GPU**）。
-
-### 为什么要 `03_convert.py` 这一步？
-
-生成阶段的 `03_answers_sft.jsonl` 是**给人看 / 给审阅前端用**的格式，Unsloth 不能直接吃。差异有三：
-
-1. **图像靠 `<image>` 文本占位符**，而 Unsloth 要的是结构化 `content` 列表里的图像对象（见下文格式）。
-2. **图片路径是生成时写死的 `/home/charles/mycode/sft+rl/dataset/...`**，训练机上根目录多半不一样，要重映射。
-3. 需要切出 train/val。（纯蒸馏下 `meta.auto_validation` 已移除，过滤步骤默认全量保留；要做质量剔除靠人工抽检结果。）
-
-`03_convert.py` 就是把这三件事一次做掉（逻辑在 `src/convert.py`），产出 `04_train.py` 能直接读的 `train.jsonl` / `val.jsonl`。
-
-### Step A：装训练依赖（Linux）
-
-```bash
-# 先按 Unsloth 官方指引装好匹配的 torch+CUDA，再装本仓库训练依赖
-pip install -r requirements-train.txt
-
-# 训练用 SwanLab 做可视化（loss/学习率/显存曲线）。首次登录一次即可：
-swanlab login            # 贴上 swanlab.cn 的 API key；或设环境变量 SWANLAB_API_KEY
-```
-
-> 训练时 `04_train.py` 已接入 `SwanLabCallback`，会自动把曲线推到看板（项目/实验名见脚本顶部 `SWANLAB_PROJECT` / `SWANLAB_EXPERIMENT` 常量）。想完全离线只在本机看，给回调加 `mode="local"`。
-
-### Step B：转训练集
-
-```bash
-python 03_convert.py \
-  --image-root /your/abs/path/to/dataset \  # 训练机上 dataset 的真实绝对路径，必填
-  --val-ratio 0.02 \
-  --rebalance \                            # 可选：按配比降采样，主要压 counting
-  --check-images                           # 图片在本机时建议开，校验每张图都能打开
-# 产出 outputs/sft/train.jsonl 与 val.jsonl
-```
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--src` | `outputs/03_answers_sft.jsonl` | 输入答案 jsonl |
-| `--out-dir` | `outputs/sft` | 输出目录 |
-| `--old-root` | `/home/charles/mycode/sft+rl/dataset` | 被替换的原图片根目录 |
-| `--image-root` | 空 | **训练机上的图片根目录**；留空则不改路径（到 Linux 上务必传） |
-| `--keep-warning` | 关 | **纯蒸馏下基本是 no-op**：`auto_validation` 字段已移除，过滤默认全保留（缺字段即按 pass 处理） |
-| `--rebalance` | 关 | 转换前按目标配比降采样（主要把 counting 压到 5%） |
-| `--check-images` | 关 | 校验每张图是否存在（需图片在本机） |
-| `--val-ratio` | `0.02` | 验证集比例 |
-
-> 路径重映射**始终输出 POSIX 斜杠**，即便在 Windows 上跑 `03_convert.py`，产出的路径到 Linux 也直接可用。
-
-### Step C：训练
-
-`04_train.py` 是**扁平脚本**（照搬 Unsloth 官方 Qwen3-VL Vision notebook 的结构，刻意不封装、不加命令行参数），方便逐段对照学习。**改超参就直接改脚本顶部各 section 里的常量。**
-
-```bash
-# 冒烟：把脚本里 `# max_steps = 30` 那行取消注释（覆盖 epochs，只跑 30 步），确认数据/显存/模板都通
-python 04_train.py
-
-# 正式训练：把 max_steps 注释回去，按需调 num_train_epochs 等常量，再跑
-python 04_train.py
-```
-
-脚本分六步，每个参数都在所属步骤里就近注释：
-
-| 步骤 | 关键常量 | 说明 |
-|------|---------|------|
-| ① 加载模型 | `MODEL_NAME` / `load_in_4bit` | 基座 Qwen3-VL-2B（默认 `load_in_4bit=False`，16bit 普通 LoRA）；显存紧可设 True 走 QLoRA |
-| ② 挂 LoRA | `r` / `lora_alpha` / `finetune_vision_layers` | LoRA 秩=容量；**抗遗忘默认关视觉层、r=8**（见下「起步配方」） |
-| ③ 准备数据 | `convert_to_conversation` | 把每行 `{image,question,answer}` 转成 Unsloth 对话 + `Image.open` 读图 |
-| ④ 训练器 | `SFTConfig(...)` | 批大小/时长/学习率/精度/验证/取最佳（见下「起步配方」） |
-| ⑤ 训练 | — | `trainer.train()` |
-| ⑥ 保存 | `OUTPUT_DIR` | 存 LoRA；末尾有合并 16bit 的可选注释行 |
-
-要点：
-- 用 `FastVisionModel` + `UnslothVisionDataCollator`，**只训练 LoRA 适配器**，基座冻结。
-- 数据是 eager 列表（一次读进内存），几千张没问题；规模很大时改 `with_transform` 惰性读图（脚本里有注释）。
-- 输出 LoRA 适配器到 `OUTPUT_DIR`；要合并 16bit 权重就取消脚本末尾那行注释。
-
-### 起步配方（~3700 条规模，**抗遗忘版**）
-
-当前数据约 3700 条训练样本，**有效 batch = `per_device_train_batch_size` × `gradient_accumulation_steps` = 16**，每 epoch ≈ 3700 / 16 ≈ **230 步**。
-
-脚本默认已按**抗遗忘**调过——窄数据（~3700 条、单一遥感 VQA）上，太大的学习率/容量/训练量会把 2B 模型整体往这套数据上拽，牺牲通用能力。下面是当前默认与取舍：
-
-| 常量 | 当前默认 | 抗遗忘考量 |
-|------|------|------|
-| `num_train_epochs` | `1` | 窄数据跑满 1 epoch 往往已足够；配合下面的"取最佳"防过拟合 |
-| `per_device_train_batch_size` / `gradient_accumulation_steps` | `2` / `8` | 有效 batch 16；OOM 就 batch 改 1、accum 改 16，乘积不变 |
-| `learning_rate` | `5e-5` | **从 2e-4 降下来**：2e-4 在窄数据上 1 个 epoch 就把模型推得很远，是遗忘主因之一 |
-| `r`（在 `get_peft_model`） | `8` | **从 16 降到 8**：直接砍掉可改写子空间，抗遗忘最直接的旋钮；欠拟合再升回 16/32 |
-| `lora_alpha`（在 `get_peft_model`） | `16` | 等效放大 = alpha/r = **2.0**。想进一步抗遗忘可降到 8（ratio=1），代价是学得慢些 |
-| `lora_dropout`（在 `get_peft_model`） | `0.05` | 一点正则抑制过拟合 |
-| `finetune_vision_layers`（在 `get_peft_model`） | `False` | **关视觉塔**：3700 张遥感图训它易破坏对自然图的理解，且本任务不靠学新视觉特征 |
-| `load_in_4bit`（在 `from_pretrained`） | `False` | 16bit 普通 LoRA；显存紧可设 True 走 QLoRA |
-
-**验证与"取最佳"（已默认开启，抗遗忘关键）：**
-
-| 常量（在 `SFTConfig` 内） | 当前默认 | 作用 |
-|------|------|------|
-| `eval_strategy` / `eval_steps` | `"steps"` / `10` | 每 10 步在 `val.jsonl` 上算一次 loss，画出过拟合拐点 |
-| `load_best_model_at_end` | `True` | 训练结束**回滚到 val loss 最低的 checkpoint**，而不是最后一步 |
-| `metric_for_best_model` / `greater_is_better` | `"eval_loss"` / `False` | 以验证 loss 选最佳 |
-| `save_strategy` / `save_steps` | `"steps"` / `10` | 必须与 eval 对齐，否则最佳点可能没被存下来 |
-
-> 注意 `save_steps=10` 存得很勤，靠 `save_total_limit=3` 控制磁盘（LoRA 适配器才几十 MB，无压力）。当前**未开早停**——`load_best_model_at_end` 只回滚不提前停；想要连续 N 次 eval 不降就停，再加 `EarlyStoppingCallback`。
->
-> 仍嫌遗忘重，最治本的是**混入回放数据**（5%~20% 通用图文/纯文本指令，或用基座自蒸馏的通用 QA），比调超参更有效。
-
-### Unsloth 的数据格式 vs 我们的生成格式
-
-**Unsloth 视觉微调要的格式**（`04_train.py` 在内存里构造，不用你手写）：
-
-```python
-[
-  {"role": "user", "content": [
-      {"type": "image", "text": None, "image": <PIL.Image 对象>},
-      {"type": "text",  "text": "图像中是否有水体？"}]},
-  {"role": "assistant", "content": [
-      {"type": "text", "text": "有。图像左下角可见一片深色水域，边界清晰。"}]},
-]
-```
-
-关键点：`content` 是一个**列表**，图像和文本是并列的结构化元素，图像是**真正的图对象**（或可被 processor 解析的对象），不是字符串占位符。
-
-**我们生成的格式**（`03_answers_sft.jsonl`）：
-
-```json
-{"messages": [
-   {"role": "user", "content": "<image>\n图像中是否有水体？"},
-   {"role": "assistant", "content": "有。图像左下角可见一片深色水域，边界清晰。"}],
- "images": ["/home/charles/.../05796.png"]}
-```
-
-**为什么不能直接喂给 Unsloth：**
-
-| 维度 | 我们的格式 | Unsloth 要的 | 后果 |
-|------|-----------|-------------|------|
-| 图像位置 | `content` 里的 `<image>` 文本占位符 + 独立 `images` 字段 | `content` 列表里的结构化图像元素 | 直接读会把 `<image>` 当普通文本，图像喂不进去 |
-| `content` 类型 | 字符串 | 列表（text/image 元素） | collator 解析不到图像 token |
-| 图片引用 | 文件路径字符串 | PIL/可解析图对象 | 需要在 `03_convert.py`/`04_train.py` 里 `Image.open` 加载 |
-| 路径根目录 | 生成机的 `/home/charles/...` | 训练机真实路径 | 不重映射会找不到图 |
-
-> 说明：我们这套格式是 **LLaMA-Factory / ShareGPT 风格**（`messages` + 平行 `images` + `<image>` 占位符），它本身是业界常见的 VLM SFT 格式，**LLaMA-Factory 能直接读**。只是 **Unsloth 用的是另一套（结构化 content）**，所以中间需要 `03_convert.py` 做一次转换。换句话说不是你的数据"错了"，是两个训练框架的输入约定不同。
-## 训练完成后：直接推理还是先合并
-
-`04_train.py` 跑完后，通常有两条后续路径。
-
-### 方案一：直接用 LoRA adapter 推理
-
-如果你只是想先在本地验证模型效果，不需要立刻导出 merged 模型，就用 `07_infer_lora.py`：
-
-```bash
-python 07_infer_lora.py \
-    --adapter outputs/qwen3vl-sft-lora \
-    --image /home/charles/mycode/sft+rl/dataset/LEVIR-CD+/train/B/train_369.png \
-    --question "图像右上角建筑物的屋顶呈现什么颜色？"
-```
-
-常用参数：
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--adapter` | `outputs/qwen3vl-sft-lora` | LoRA adapter 目录，也可以直接指向某个 `checkpoint-*` |
-| `--image` | 必填 | 输入图片路径 |
-| `--question` | 必填 | 你要问模型的问题 |
-| `--max-new-tokens` | `256` | 最多生成多少新 token |
-| `--temperature` | `0.0` | `0.0` 表示确定性解码；大于 0 才会采样 |
-| `--min-p` | `0.1` | 仅在开启采样时使用的 `min_p` 参数 |
-| `--load-in-4bit` | 关 | 只有你的训练/导出流程本身要求 4bit 时才打开 |
-
-### 方案二：把 LoRA 合并成完整 16-bit 模型
-
-如果你想得到一个可单独部署的完整模型目录，就用 `06_merge_lora.py`：
-
-```bash
-python 06_merge_lora.py \
-  --adapter outputs/qwen3vl-sft-lora \
-  --out outputs/qwen3vl-sft-lora_merged
-```
-
-如果你想合并某个指定 checkpoint：
-
-```bash
-python 06_merge_lora.py \
-  --adapter outputs/qwen3vl-sft-lora/checkpoint-364 \
-  --out outputs/qwen3vl-sft-lora-ckpt364-merged
-```
-
-常用参数：
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--adapter` | `outputs/qwen3vl-sft-lora` | LoRA adapter 目录，也可以指向某个 `checkpoint-*` |
-| `--out` | `<adapter>_merged` | 合并后的完整 16-bit 模型输出目录 |
-| `--load-in-4bit` | 关 | 仅 4bit 流程才需要打开；普通 16bit LoRA 保持关闭 |
-
-### 什么时候用哪种方式
-
-- 只是本地快速验效果：优先用 `07_infer_lora.py`
-- 需要部署或交付完整模型：用 `06_merge_lora.py`
-- 想比较不同 checkpoint：把 `--adapter` 指向不同的 `checkpoint-*` 目录即可
