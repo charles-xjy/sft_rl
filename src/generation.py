@@ -426,6 +426,11 @@ def generate(args) -> Path:
          tqdm(total=phase2_total, initial=phase2_done_initial, desc="P2 questions", position=1) as p2_bar, \
          tqdm(total=phase3_total, initial=phase3_done_initial, desc="P3 answers", position=2) as p3_bar, \
          ThreadPoolExecutor(max_workers=args.max_concurrency) as executor:
+        # Resume-only case: if Phase 1/2 are already complete when we start,
+        # Phase 3 still needs to be enqueued once before entering the loop.
+        maybe_enqueue_phase3()
+        p3_bar.total = phase3_total
+        p3_bar.refresh()
         drain_queue(executor)
 
         while future_to_task:
