@@ -175,9 +175,9 @@ python 01_generate.py --no-health-check
 }
 ```
 
-### Phase 3: 生成带分析过程的答案（内部）
+### Phase 3: 纯蒸馏答案生成（内部）
 
-生成最终的 SFT 训练数据。两种形态按 `--direct-ratio` 混合：约 70% 带 `<analysis>`（步数自适应 1-3 步），约 30% 直答只有 `<answer>`。prompt 明确**以图像为准、描述仅供参考**。
+生成最终的 SFT 训练数据。**把"图像 + 问题"直接交给教师模型，原样收下回答**——不套 `<analysis>`/`<answer>` 格式、不分 analysis/direct、不做格式校验（`ANSWER_DISTILL_PROMPT`）。唯一护栏：看不清就说不确定。连 Phase 1 描述也不传，纯靠教师看图作答。
 
 **输出格式** (`outputs/03_answers_sft.jsonl`):
 ```json
@@ -189,25 +189,19 @@ python 01_generate.py --no-health-check
     },
     {
       "role": "assistant",
-      "content": "<analysis>\n1. 定位：...\n2. 观察：...\n3. 判断：...\n</analysis>\n<answer>...</answer>"
+      "content": "有。图像左下角可见一片深色水域，边界清晰。"
     }
   ],
   "images": ["/path/to/image.png"],
   "meta": {
-    "task_type": "vqa_with_analysis",   // 直答样本为 "vqa_direct"
-    "answer_mode": "analysis",            // analysis | direct
+    "task_type": "vqa_distill",
     "question_type": "existence",
-    "source_dataset": "LEVIR-CD+",
-    "auto_validation": {
-      "is_valid": true,
-      "warnings": [],
-      "label": "pass"
-    }
+    "source_dataset": "LEVIR-CD+"
   }
 }
 ```
 
-> 直答样本的 `assistant.content` 只有 `<answer>…</answer>`，没有 `<analysis>`；`meta.answer_mode` 标记每条用的是哪种模式。
+> `assistant.content` 是教师的原始自然回答，长度/风格由教师决定；`meta` 不再有 `answer_mode` / `auto_validation` 字段。
 
 ---
 
@@ -232,7 +226,7 @@ python 01_generate.py --no-health-check
 | `--num-images` | `None` | 全局混合随机采样总数；传入后优先于 `--samples-per-dataset` |
 | `--samples-per-dataset` | `LEVIR-CD+=500,SECOND=500` | 每数据集采样数；可写单一整数对所有数据集生效 |
 | `--ebd-per-disaster` | `None` | EBD 按 7 种灾害子目录各抽 N 张 |
-| `--seed` | `42` | 采样 + 软配额 + analysis/direct 分配的随机种子 |
+| `--seed` | `42` | 采样 + 软配额分配的随机种子 |
 | `--manifest` / `--refresh-manifest` | — | 复用 / 强制重抽样本清单 |
 
 ### 出题 / 答案
@@ -241,7 +235,7 @@ python 01_generate.py --no-health-check
 |------|--------|------|
 | `--num-questions` | `5` | 每张图问题数上限（软配额在 [min, num] 区间分配类型） |
 | `--min-questions` | `2` | 每张图问题数下限 |
-| `--direct-ratio` | `0.3` | 直答（无 analysis）样本占比，打散固定起手式 |
+| `--direct-ratio` | `0.3` | **已废弃**：纯蒸馏不再分 analysis/direct，此参数不再生效（保留仅为兼容旧命令行） |
 
 ### 运行 / 输出
 
@@ -283,20 +277,16 @@ curl -s http://10.129.107.145:8001/v1/models | python -m json.tool
 
 解决：删除输出文件重新运行，或手动过滤已处理的。
 
-### Q: 生成的answer格式不正确？
+### Q: 教师答案质量不稳定 / 偶尔跑题？
 
-自动质检会标记格式问题，在输出统计中可以看到：
-- `format_fail`: 缺少必要的标签
-- `warning`: 包含高风险词或其他警告
-
-可以查看 `meta.auto_validation.warnings` 了解具体原因。
+纯蒸馏不再做格式校验，答案质量完全取决于教师模型（Qwen3.5-27B）。`meta` 里也不再有 `auto_validation`。把关手段是 [人工抽检](#人工审批前端)——发现系统性问题就回去改 `ANSWER_DISTILL_PROMPT`（`src/prompts.py`）或换更强的教师。
 
 ### Q: 如何调整生成的temperature？
 
 编辑 `src/prompts.py` 或直接修改对应脚本中的 `temperature` 参数：
 - 描述生成: 0.3 (保守)
 - 问题生成: 0.4 (适度多样化)
-- 答案生成: 0.3 (稳定格式)
+- 答案生成: 0.3 (稳定作答)
 
 ---
 
@@ -340,27 +330,27 @@ DATASET_CONFIGS = {
 }
 ```
 
-### 4. 调整自动质检规则
+### 4. 调整答案护栏 / 蒸馏 prompt
 
-编辑 `src/validator.py` 中的验证逻辑：
-- 添加/移除高风险词
-- 调整 analysis 步数范围（现为自适应 1-3 步）或 `expect_analysis` 双模式校验
-- 添加新的问题类型检查（如 unanswerable / ambiguous 的拒答表达校验）
+纯蒸馏没有格式校验，唯一能控答案行为的地方是 `src/prompts.py` 的 `ANSWER_DISTILL_PROMPT`：
+- 想加/改护栏（如"不要给行政建议"），在"唯一要求"里加一行即可——但每多一条约束就多一分把教师往模板腔上拽的风险，克制为上。
+- 想换教师风格，直接换 `--model` / `--base-url` 指向更强或不同的模型。
+
+> `src/validator.py` 那套旧格式校验 generation 已不再调用，改它不影响纯蒸馏产出。
 
 ### 5. 快速检查数据质量
 
 ```bash
-# 统计自动质检通过率
+# 抽看几条教师答案，确认是自然口吻、无 <analysis>/<answer> 残留
 python -c "
 import json
-pass_count = total = 0
 with open('outputs/03_answers_sft.jsonl') as f:
-    for line in f:
+    for i, line in enumerate(f):
+        if i >= 5: break
         r = json.loads(line)
-        total += 1
-        if r['meta']['auto_validation']['label'] == 'pass':
-            pass_count += 1
-print(f'Pass: {pass_count}/{total} ({pass_count/total*100:.1f}%)')
+        print('Q:', r['messages'][0]['content'].replace('<image>','').strip())
+        print('A:', r['messages'][1]['content'])
+        print('-' * 40)
 "
 ```
 
@@ -392,7 +382,6 @@ python 01_generate.py \
   --datasets "LEVIR-CD+,SECOND" \
   --num-images 1000 \
   --num-questions 5 --min-questions 2 \
-  --direct-ratio 0.3 \
   --max-concurrency 24 \
   --base-url http://你的服务器:8001/v1
 # 产出：outputs/01_descriptions.jsonl / 02_questions.jsonl / 03_answers_sft.jsonl
@@ -472,14 +461,14 @@ python 03_convert.py --rebalance --image-root /your/abs/path/to/dataset
 
 **红线判定**（`report()` 返回 True 表示触发；`01_generate.py` 会据此打印告警）：
 
-| 维度 | 红线 |
-|---|---|
-| question_type 归一化熵 | < 0.7（类型分布失衡） |
-| 问题前缀 Top-3 合计 | > 60%（Question Distribution Collapse） |
-| answer / analysis 单一开头 | > 20%（过度模板化） |
-| 无 direct 直答样本 | 全量带 analysis |
+| 维度 | 红线 | 纯蒸馏下是否有效 |
+|---|---|---|
+| question_type 归一化熵 | < 0.7（类型分布失衡） | ✅ 有效（问题侧，与答案格式无关） |
+| 问题前缀 Top-3 合计 | > 60%（Question Distribution Collapse） | ✅ 有效（问题侧） |
+| answer / analysis 单一开头 | > 20%（过度模板化） | ⚠️ 失真（按旧格式设计） |
+| 无 direct 直答样本 | 全量带 analysis | ❌ 恒触发误报（纯蒸馏没有 direct 概念） |
 
-其余指标（拒答率是否在 5%-10%、各题型答案长度、编码乱码）仅提示，不卡红线。
+> ⚠️ **答案侧红线已不适配纯蒸馏**：`src/health.py` 的答案侧检查（上表后两行）是为旧 analysis/direct 格式写的，现在会失真甚至恒误报，待按蒸馏形态改写。**问题侧两行仍然可信**。其余指标（拒答率、答案长度、编码乱码）仅提示，不卡红线。
 
 ---
 
@@ -551,7 +540,7 @@ http://127.0.0.1:8008
 
 1. **图像靠 `<image>` 文本占位符**，而 Unsloth 要的是结构化 `content` 列表里的图像对象（见下文格式）。
 2. **图片路径是生成时写死的 `/home/charles/mycode/sft+rl/dataset/...`**，训练机上根目录多半不一样，要重映射。
-3. 需要**过滤掉未通过质检的样本**，并切出 train/val。
+3. 需要切出 train/val。（纯蒸馏下 `meta.auto_validation` 已移除，过滤步骤默认全量保留；要做质量剔除靠人工抽检结果。）
 
 `03_convert.py` 就是把这三件事一次做掉（逻辑在 `src/convert.py`），产出 `04_train.py` 能直接读的 `train.jsonl` / `val.jsonl`。
 
@@ -584,7 +573,7 @@ python 03_convert.py \
 | `--out-dir` | `outputs/sft` | 输出目录 |
 | `--old-root` | `/home/charles/mycode/sft+rl/dataset` | 被替换的原图片根目录 |
 | `--image-root` | 空 | **训练机上的图片根目录**；留空则不改路径（到 Linux 上务必传） |
-| `--keep-warning` | 关 | 也保留 `warning` 样本（默认只留 `pass`，永远剔除 `format_fail`） |
+| `--keep-warning` | 关 | **纯蒸馏下基本是 no-op**：`auto_validation` 字段已移除，过滤默认全保留（缺字段即按 pass 处理） |
 | `--rebalance` | 关 | 转换前按目标配比降采样（主要把 counting 压到 5%） |
 | `--check-images` | 关 | 校验每张图是否存在（需图片在本机） |
 | `--val-ratio` | `0.02` | 验证集比例 |
@@ -607,10 +596,10 @@ python 04_train.py
 
 | 步骤 | 关键常量 | 说明 |
 |------|---------|------|
-| ① 加载模型 | `MODEL_NAME` / `load_in_4bit` | 基座（默认官方 4bit 量化版）；显存够可关 4bit |
-| ② 挂 LoRA | `r` / `lora_alpha` / `finetune_vision_layers` | LoRA 秩=容量；视觉层建议保持训 |
+| ① 加载模型 | `MODEL_NAME` / `load_in_4bit` | 基座 Qwen3-VL-2B（默认 `load_in_4bit=False`，16bit 普通 LoRA）；显存紧可设 True 走 QLoRA |
+| ② 挂 LoRA | `r` / `lora_alpha` / `finetune_vision_layers` | LoRA 秩=容量；**抗遗忘默认关视觉层、r=8**（见下「起步配方」） |
 | ③ 准备数据 | `convert_to_conversation` | 把每行 `{image,question,answer}` 转成 Unsloth 对话 + `Image.open` 读图 |
-| ④ 训练器 | `SFTConfig(...)` | 批大小/时长/学习率/精度（见下「起步配方」） |
+| ④ 训练器 | `SFTConfig(...)` | 批大小/时长/学习率/精度/验证/取最佳（见下「起步配方」） |
 | ⑤ 训练 | — | `trainer.train()` |
 | ⑥ 保存 | `OUTPUT_DIR` | 存 LoRA；末尾有合并 16bit 的可选注释行 |
 
@@ -619,20 +608,35 @@ python 04_train.py
 - 数据是 eager 列表（一次读进内存），几千张没问题；规模很大时改 `with_transform` 惰性读图（脚本里有注释）。
 - 输出 LoRA 适配器到 `OUTPUT_DIR`；要合并 16bit 权重就取消脚本末尾那行注释。
 
-### 起步配方（~3795 条规模）
+### 起步配方（~3700 条规模，**抗遗忘版**）
 
-当前数据约 3720 条训练样本，**有效 batch = `per_device_train_batch_size` × `gradient_accumulation_steps` = 16**，每 epoch ≈ 3720 / 16 ≈ **232 步**。脚本里 `SFTConfig` 的默认就是下面这套，按需在脚本顶部微调：
+当前数据约 3700 条训练样本，**有效 batch = `per_device_train_batch_size` × `gradient_accumulation_steps` = 16**，每 epoch ≈ 3700 / 16 ≈ **230 步**。
 
-| 常量（在 `SFTConfig` 内） | 默认 | 调参取舍 |
+脚本默认已按**抗遗忘**调过——窄数据（~3700 条、单一遥感 VQA）上，太大的学习率/容量/训练量会把 2B 模型整体往这套数据上拽，牺牲通用能力。下面是当前默认与取舍：
+
+| 常量 | 当前默认 | 抗遗忘考量 |
 |------|------|------|
-| `num_train_epochs` | `2` | 3720 条偏小，从 2 起看 loss 再加到 3；>3 易过拟合到模板腔 |
+| `num_train_epochs` | `1` | 窄数据跑满 1 epoch 往往已足够；配合下面的"取最佳"防过拟合 |
 | `per_device_train_batch_size` / `gradient_accumulation_steps` | `2` / `8` | 有效 batch 16；OOM 就 batch 改 1、accum 改 16，乘积不变 |
-| `learning_rate` | `2e-4` | LoRA 标准值；全参才用 1e-5 量级，LoRA 用错几乎不学 |
-| `r` / `lora_alpha`（在 `get_peft_model`） | `16` / `16` | alpha=r；几千条够用，上到几万或欠拟合再升 32 |
-| `finetune_vision_layers`（在 `get_peft_model`） | `True` | 遥感图与自然图差异大，保持训视觉塔；OOM 才退一步关掉 |
-| `load_in_4bit`（在 `from_pretrained`） | `True` | 显存紧保持 4bit；A100 80G 可设 False |
+| `learning_rate` | `5e-5` | **从 2e-4 降下来**：2e-4 在窄数据上 1 个 epoch 就把模型推得很远，是遗忘主因之一 |
+| `r`（在 `get_peft_model`） | `8` | **从 16 降到 8**：直接砍掉可改写子空间，抗遗忘最直接的旋钮；欠拟合再升回 16/32 |
+| `lora_alpha`（在 `get_peft_model`） | `16` | 等效放大 = alpha/r = **2.0**。想进一步抗遗忘可降到 8（ratio=1），代价是学得慢些 |
+| `lora_dropout`（在 `get_peft_model`） | `0.05` | 一点正则抑制过拟合 |
+| `finetune_vision_layers`（在 `get_peft_model`） | `False` | **关视觉塔**：3700 张遥感图训它易破坏对自然图的理解，且本任务不靠学新视觉特征 |
+| `load_in_4bit`（在 `from_pretrained`） | `False` | 16bit 普通 LoRA；显存紧可设 True 走 QLoRA |
 
-> 想监控过拟合，可在 `SFTConfig` 里加 `eval_strategy="steps"` + `eval_steps=100` 并给 `SFTTrainer` 传一个 `eval_dataset`（同样用 `convert_to_conversation` 转 `outputs/sft/val.jsonl`）。基础版照搬 notebook 没带验证集，保持最简。
+**验证与"取最佳"（已默认开启，抗遗忘关键）：**
+
+| 常量（在 `SFTConfig` 内） | 当前默认 | 作用 |
+|------|------|------|
+| `eval_strategy` / `eval_steps` | `"steps"` / `10` | 每 10 步在 `val.jsonl` 上算一次 loss，画出过拟合拐点 |
+| `load_best_model_at_end` | `True` | 训练结束**回滚到 val loss 最低的 checkpoint**，而不是最后一步 |
+| `metric_for_best_model` / `greater_is_better` | `"eval_loss"` / `False` | 以验证 loss 选最佳 |
+| `save_strategy` / `save_steps` | `"steps"` / `10` | 必须与 eval 对齐，否则最佳点可能没被存下来 |
+
+> 注意 `save_steps=10` 存得很勤，靠 `save_total_limit=3` 控制磁盘（LoRA 适配器才几十 MB，无压力）。当前**未开早停**——`load_best_model_at_end` 只回滚不提前停；想要连续 N 次 eval 不降就停，再加 `EarlyStoppingCallback`。
+>
+> 仍嫌遗忘重，最治本的是**混入回放数据**（5%~20% 通用图文/纯文本指令，或用基座自蒸馏的通用 QA），比调超参更有效。
 
 ### Unsloth 的数据格式 vs 我们的生成格式
 
@@ -644,7 +648,7 @@ python 04_train.py
       {"type": "image", "text": None, "image": <PIL.Image 对象>},
       {"type": "text",  "text": "图像中是否有水体？"}]},
   {"role": "assistant", "content": [
-      {"type": "text", "text": "<analysis>...</analysis>\n<answer>...</answer>"}]},
+      {"type": "text", "text": "有。图像左下角可见一片深色水域，边界清晰。"}]},
 ]
 ```
 
@@ -655,7 +659,7 @@ python 04_train.py
 ```json
 {"messages": [
    {"role": "user", "content": "<image>\n图像中是否有水体？"},
-   {"role": "assistant", "content": "<analysis>...</analysis>\n<answer>...</answer>"}],
+   {"role": "assistant", "content": "有。图像左下角可见一片深色水域，边界清晰。"}],
  "images": ["/home/charles/.../05796.png"]}
 ```
 

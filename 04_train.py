@@ -64,14 +64,14 @@ model, tokenizer = FastVisionModel.from_pretrained(
 model = FastVisionModel.get_peft_model(
     model,
     # ↓ 选「模型的哪些部分」挂 LoRA。VLM 由视觉塔+语言模型两半组成，可分别开关。
-    finetune_vision_layers     = True,   # 训视觉塔——遥感图与自然图差异大，建议开；OOM 时第一个考虑关
+    finetune_vision_layers     = False,  # 【抗遗忘】关视觉塔：3700 张遥感图训它易破坏对自然图的理解，且本任务不靠学新视觉特征
     finetune_language_layers   = True,   # 训语言层（负责生成 analysis/answer），一般开
     finetune_attention_modules = True,   # LoRA 挂到注意力投影(q/k/v/o)，开
     finetune_mlp_modules       = True,   # LoRA 挂到 MLP(gate/up/down)，开
     # ↓ LoRA 本身的超参
-    r = 16,             # LoRA 秩 = 可训练容量。越大越能学但越占显存/越易过拟合；几千条数据 16 够，欠拟合升 32
-    lora_alpha = 16,    # 缩放系数，等效放大≈alpha/r。惯例设成 = r（这里 16/16=1 倍）
-    lora_dropout = 0,   # LoRA 层 dropout。0 最快(unsloth 有优化路径)；想抗过拟合设 0.05
+    r = 8,              # 【抗遗忘】降到 8：直接砍掉可改写子空间，是抗遗忘最直接的旋钮；欠拟合再升回 16/32
+    lora_alpha = 16,     # 缩放系数，等效放大≈alpha/r。跟随 r 设成 8，保持 1 倍标准缩放
+    lora_dropout = 0.05,# 【抗遗忘】加一点 dropout 正则，抑制过拟合（unsloth 非零 dropout 略慢但可接受）
     bias = "none",      # 是否一起训 bias。"none" 最省显存，标配
     random_state = 3407,    # 随机种子（LoRA 初始化等），固定可复现
     use_rslora = False,     # rank-stabilized LoRA（大 r 时缩放更稳）。小 r 用不上
@@ -128,10 +128,10 @@ swanlab_callback = SwanLabCallback(
     experiment_name = SWANLAB_EXPERIMENT,
     config = {
         "model": MODEL_NAME,
-        "lora_r": 16,
-        "epochs": 2,
+        "lora_r": 8,                # 与 ② 的 r 对齐
+        "epochs": 1,                # 与 ④ 的 num_train_epochs 对齐（之前写 2，与实际不符）
         "effective_batch": 2 * 8,   # per_device_train_batch_size * gradient_accumulation_steps
-        "learning_rate": 2e-4,
+        "learning_rate": 5e-5,      # 与 ④ 的 learning_rate 对齐
     },
 )
 
@@ -154,8 +154,8 @@ trainer = SFTTrainer(
         warmup_steps = 20,                   # 开头几步学习率从 0 线性升到设定值，避免一上来就乱跳
 
         # ---------- 学习率 ----------
-        learning_rate = 2e-4,               # LoRA 标准值；全参微调才用 1e-5 量级，LoRA 给小了几乎不学
-        lr_scheduler_type = "linear",       # 学习率衰减曲线：线性降到 0（也常用 "cosine"）
+        learning_rate = 5e-5,               # 【抗遗忘】从 2e-4 降到 5e-5：窄数据上 2e-4 1 个 epoch 就把模型推得很远
+        lr_scheduler_type = "cosine",       # 学习率衰减曲线：线性降到 0（也常用 "cosine"）
         weight_decay = 0.001,               # 权重衰减(L2 正则)，抑制过拟合，小值即可
 
         # ---------- 精度 / 优化器 ----------
@@ -164,11 +164,17 @@ trainer = SFTTrainer(
 
         # ---------- 验证：定期在 val 集上算 loss ----------
         eval_strategy = "steps",            # 按步数触发验证（另有 "epoch" / "no"）
-        eval_steps = 10,                    # 每 50 步在验证集上评一次，画出 val loss 曲线
+        eval_steps = 10,                    # 每 10 步在验证集上评一次，画出 val loss 曲线
+
+        # ---------- 早停 / 取最佳：靠 val loss 防遗忘 ----------
+        load_best_model_at_end = True,      # 【抗遗忘】训练结束回滚到 val loss 最低的那个 checkpoint，而非最后一步
+        metric_for_best_model = "eval_loss",# 以验证集 loss 作为"最佳"判据
+        greater_is_better = False,          # eval_loss 越小越好
 
         # ---------- 日志 / 保存 ----------
         logging_steps = 5,                  # 每 5 步打一次 train loss（也推给 SwanLab）
-        save_steps = 100,                   # 每 100 步存一次 checkpoint 到 output_dir
+        save_strategy = "steps",            # 必须与 eval 对齐，load_best_model_at_end 才能保存到最佳点
+        save_steps = 10,                    # 【抗遗忘】对齐 eval_steps=10；否则最佳点可能没被存下来
         save_total_limit = 3,               # 最多保留 3 个 checkpoint，旧的自动删，省磁盘
         output_dir = OUTPUT_DIR,            # checkpoint / 中间产物输出目录
         seed = 3407,                        # 全局随机种子，复现用

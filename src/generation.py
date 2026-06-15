@@ -7,7 +7,6 @@ Phase 3 等 Phase 1/2 全部完成后,对所有待答问题统一生成答案。
 
 入口脚本 `01_generate.py` 解析命令行后调用 `generate(args)`。
 """
-import hashlib
 import json
 import threading
 from collections import defaultdict, deque
@@ -19,8 +18,7 @@ from typing import Deque, Dict, List
 from tqdm import tqdm
 
 from src.prompts import (
-    ANSWER_DIRECT_PROMPT,
-    ANSWER_GENERATION_PROMPT,
+    ANSWER_DISTILL_PROMPT,
     DESCRIPTION_PROMPT,
     QUESTION_GENERATION_PROMPT,
 )
@@ -34,7 +32,6 @@ from src.scanner import (
     scan_all_datasets,
     stratified_sample,
 )
-from src.validator import salvage_answer, validate_answer
 from src.vlm_client import VLMClient
 
 
@@ -47,21 +44,6 @@ VALID_QUESTION_TYPES = {
     "unanswerable",
     "ambiguous",
 }
-
-
-def pick_answer_mode(image_path: str, question: str, qtype: str,
-                     direct_ratio: float, seed: int) -> str:
-    """决定一条问答用 analysis 还是 direct 模式。
-
-    并行环境下不共享 rng,改用 (image|question) 的稳定哈希做确定性抽样:
-    同一条样本无论重跑还是断点续跑都得到相同模式,且天然线程安全。
-    unanswerable / spatial_relation 需要证据链,固定走 analysis。
-    """
-    if qtype in ("unanswerable", "ambiguous", "spatial_relation"):
-        return "analysis"
-    h = hashlib.md5(f"{seed}|{image_path}|{question}".encode("utf-8")).hexdigest()
-    frac = int(h[:8], 16) / 0xFFFFFFFF
-    return "direct" if frac < direct_ratio else "analysis"
 
 
 def parse_questions_response(response: str) -> List[Dict[str, str]]:
@@ -188,27 +170,18 @@ def phase2_task(task: dict, get_client, num_questions: int, min_questions: int,
 
 
 def phase3_task(task: dict, get_client, direct_ratio: float = 0.3, seed: int = 42) -> dict:
-    """Run Phase 3 for one question."""
+    """Run Phase 3 for one question（纯蒸馏：图片+问题直接问教师，不套格式、不做格式校验）。
+
+    direct_ratio / seed 仅为保持 submit_task 的调用签名，纯蒸馏模式下不再使用。
+    """
     client = get_client()
     image_path = Path(task["image_path"])
-    mode = pick_answer_mode(
-        task["image_path"], task["question"], task["question_type"], direct_ratio, seed
-    )
-    template = ANSWER_GENERATION_PROMPT if mode == "analysis" else ANSWER_DIRECT_PROMPT
-    prompt = template.format(
-        question=task["question"],
-        question_type=task["question_type"],
-        description=task["description"],
-    )
+    prompt = ANSWER_DISTILL_PROMPT.format(question=task["question"])
     answer = client.call(
         prompt=prompt,
         image_path=image_path,
         max_tokens=2048,
         temperature=0.3,
-    )
-    answer, salvaged = salvage_answer(answer, expect_analysis=(mode == "analysis"))
-    is_valid, warnings, auto_label = validate_answer(
-        answer, task["question_type"], expect_analysis=(mode == "analysis")
     )
     record = {
         "messages": [
@@ -217,16 +190,9 @@ def phase3_task(task: dict, get_client, direct_ratio: float = 0.3, seed: int = 4
         ],
         "images": [str(image_path.resolve())],
         "meta": {
-            "task_type": "vqa_with_analysis" if mode == "analysis" else "vqa_direct",
-            "answer_mode": mode,
+            "task_type": "vqa_distill",
             "question_type": task["question_type"],
             "source_dataset": task["dataset"],
-            "auto_validation": {
-                "is_valid": is_valid,
-                "warnings": warnings,
-                "label": auto_label,
-                "salvaged": salvaged,
-            },
             "generated_at": datetime.now().isoformat(),
         },
     }
@@ -237,8 +203,8 @@ def phase3_task(task: dict, get_client, direct_ratio: float = 0.3, seed: int = 4
         "question": task["question"],
         "image_path": str(image_path.resolve()),
         "record": record,
-        "is_valid": is_valid,
-        "auto_label": auto_label,
+        "is_valid": True,
+        "auto_label": "pass",
     }
 
 
