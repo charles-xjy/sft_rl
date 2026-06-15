@@ -7,11 +7,19 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <main class="app">
+  <main class="app mode-review" id="app">
     <aside class="sidebar">
-      <h1>人工审批</h1>
+      <h1>VQA 工具</h1>
+
+      <div class="modeSwitch">
+        <button id="modeReviewBtn" class="modeBtn active">① 人工审批蒸馏数据</button>
+        <button id="modeCompareBtn" class="modeBtn">② 两个模型输出对比</button>
+      </div>
+
       <div class="summary" id="summary"></div>
-      <label class="filter">
+
+      <!-- 审批模式: 按审批状态筛选 -->
+      <label class="filter modeReview">
         <span>筛选</span>
         <select id="filter">
           <option value="pending">未审批</option>
@@ -20,6 +28,10 @@
           <option value="rejected">仅不通过</option>
         </select>
       </label>
+
+      <!-- 对比模式: 只看有学生预测的样本 -->
+      <p class="modeCompare hint" id="compareHint"></p>
+
       <div class="nav">
         <button id="prevBtn">上一条</button>
         <button id="nextBtn">下一条</button>
@@ -36,15 +48,35 @@
           <h2>问题</h2>
           <p id="question" class="textBlock"></p>
         </div>
-        <div class="card">
-          <h2>答案</h2>
-          <pre id="answer" class="textBlock pre"></pre>
+
+        <!-- 审批模式: 教师/蒸馏标签答案 -->
+        <div class="card modeReview">
+          <h2>答案（教师 / 蒸馏标签）</h2>
+          <pre id="answerReview" class="textBlock pre"></pre>
         </div>
+
+        <!-- 对比模式: 教师 vs 学生 并排 -->
+        <div class="card modeCompare">
+          <h2>答案对比</h2>
+          <div class="compare">
+            <div class="compareCol">
+              <h3 class="teacherLabel">教师</h3>
+              <pre id="answerTeacher" class="textBlock pre"></pre>
+            </div>
+            <div class="compareCol">
+              <h3 class="studentLabel">学生</h3>
+              <pre id="prediction" class="textBlock pre"></pre>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
-          <h2>自动质检</h2>
+          <h2>meta</h2>
           <pre id="meta" class="textBlock pre"></pre>
         </div>
-        <div class="card decision">
+
+        <!-- 审批模式: 通过/不通过 -->
+        <div class="card decision modeReview">
           <div class="actions">
             <button class="approve" id="approveBtn">通过</button>
             <button class="reject" id="rejectBtn">不通过</button>

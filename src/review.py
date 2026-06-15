@@ -43,6 +43,26 @@ def load_samples(input_path: Path) -> list:
     return samples
 
 
+def load_predictions(path: Path) -> dict:
+    """加载模型预测(05_baseline.py 风格: {image, question, prediction})。
+
+    按 `image|question` 建键,与样本 id 对齐,用于在前端对比教师 vs 学生答案。
+    文件不存在则返回空 dict(对比功能为可选)。
+    """
+    preds: dict = {}
+    if not path or not path.exists():
+        return preds
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                r = json.loads(line.strip())
+                key = f"{r['image']}|{r['question']}"
+                preds[key] = r.get("prediction", "")
+            except Exception:
+                continue
+    return preds
+
+
 def load_reviews(review_path: Path) -> dict:
     reviews: dict = {}
     if not review_path.exists():
@@ -64,8 +84,9 @@ def persist_reviews(review_path: Path, reviews: dict) -> None:
             f.write(json.dumps(review, ensure_ascii=False) + "\n")
 
 
-def make_handler(samples: list, review_path: Path, static_dir: Path):
+def make_handler(samples: list, review_path: Path, static_dir: Path, predictions: dict = None):
     reviews = load_reviews(review_path)
+    predictions = predictions or {}
 
     class ReviewHandler(BaseHTTPRequestHandler):
         def _send_json(self, payload, status: int = 200) -> None:
@@ -94,6 +115,7 @@ def make_handler(samples: list, review_path: Path, static_dir: Path):
                 **sample,
                 "image_url": f"/api/image?path={quote(sample['image_path'])}",
                 "review": review,
+                "prediction": predictions.get(sample["id"]),   # 学生模型答案(无则 None)
             }
 
         def do_GET(self) -> None:
@@ -110,6 +132,8 @@ def make_handler(samples: list, review_path: Path, static_dir: Path):
                         continue
                     if filter_mode == "rejected" and reviews.get(sample["id"], {}).get("decision") != "rejected":
                         continue
+                    if filter_mode == "compare" and sample["id"] not in predictions:
+                        continue
                     payload.append(self._sample_payload(sample))
                 self._send_json({
                     "items": payload,
@@ -118,6 +142,7 @@ def make_handler(samples: list, review_path: Path, static_dir: Path):
                         "reviewed": len(reviews),
                         "approved": sum(1 for r in reviews.values() if r["decision"] == "approved"),
                         "rejected": sum(1 for r in reviews.values() if r["decision"] == "rejected"),
+                        "with_prediction": sum(1 for s in samples if s["id"] in predictions),
                     },
                 })
                 return
@@ -181,10 +206,12 @@ def serve(args) -> None:
     static_dir = PROJECT_ROOT / "review" / "ui"
 
     samples = load_samples(input_path)
-    handler = make_handler(samples, review_path, static_dir)
+    predictions = load_predictions(Path(args.predictions)) if getattr(args, "predictions", None) else {}
+    handler = make_handler(samples, review_path, static_dir, predictions)
     server = ThreadingHTTPServer((args.host, args.port), handler)
 
     print(f"review_items: {len(samples)}")
+    print(f"predictions_loaded: {len(predictions)}（学生答案对比；0 表示未传 --predictions 或文件为空）")
     print(f"review_file: {review_path}")
     print(f"url: http://{args.host}:{args.port}")
     server.serve_forever()

@@ -120,6 +120,30 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve Qwen/Qwen3.5-27B \
   --port 8000
 ```
 
+### 基线小模型（未微调 Qwen3-VL-2B，端口 8002）
+
+给微调模型做对照用：把**未微调的原始 Qwen3-VL-2B**（与学生同款基座）单独起在 **8002**，
+供 `05_baseline.py` 跑基线预测。2B 很小，单卡足够、显存占比给低即可（可与别的服务共卡）。
+
+```bash
+# 选一张空闲卡（训练已钉 GPU 1，教师 27B 占 1,2，这里用一张没被占的）
+CUDA_VISIBLE_DEVICES=3 \
+vllm serve /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct \
+  --served-model-name Qwen3-VL-2B-Instruct \
+  --trust-remote-code \
+  --dtype bfloat16 \
+  --enable-prefix-caching \
+  --gpu-memory-utilization 0.5 \
+  --max-model-len 8192 \
+  --port 8002
+```
+
+> - 服务地址固定在 `http://10.129.107.145:8002/v1`（全项目服务都在这台机，不是 localhost）。
+> - 模型名不用记：`05_baseline.py` / `VLMClient` 会自动探测 `/v1/models` 返回的名字。
+> - 微调训练完成后，把**合并后的学生权重**用同样的命令换路径起一个服务（端口随意），
+>   再 `python 05_baseline.py --base-url http://10.129.107.145:<port>/v1`，即可得到"微调学生"的预测，
+>   喂给 `02_review.py --predictions` 和教师答案并排对比。
+
 ---
 
 ## 生成流程（01_generate.py）

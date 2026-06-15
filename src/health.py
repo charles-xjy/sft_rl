@@ -1,10 +1,15 @@
 """
-SFT 数据体检 + 按配比降采样。
+SFT 数据体检 + 按配比降采样(纯蒸馏版)。
 
-把"是否过度模板化、配比是否失衡"量化出来,作为数据发布前的最后一道闸。
-`report()` 只读,返回是否触发红线;`rebalance()` 按目标配比降采样产出发布集。
+纯蒸馏没有固定格式可校验,体检职责从"格式合规审计"转为"分布塌缩 + 内容风险"。
+所有答案侧统计都跑在**完整答案文本**上(不再抠 <answer>/<analysis> 标签)。
 
-被 `01_generate.py`(生成后自动体检)与 `03_convert.py` 复用;只依赖标准库。
+`report()` 只读,返回是否触发红线(仅 3 条硬红线:类型熵 / 问题前缀塌缩 / 答案开头塌缩);
+其余(啰嗦化、越界词、残留标签、拒答正确率、编码)只告警,不卡红线——纯蒸馏靠人工抽检兜底。
+`rebalance()` 按目标配比降采样产出发布集。
+
+被 `01_generate.py`(生成后自动体检)与 `03_convert.py` 复用。
+目标分布对齐 `src/sampling.py:SCHEDULE_DIST`(单一真相源);越界词表复用 `src/validator.py`。
 """
 import json
 import math
@@ -13,24 +18,24 @@ import re
 import statistics
 from collections import Counter, defaultdict
 
-# 目标 question_type 配比(与 prompts.py 的 Phase2 建议一致)
-TARGET_DIST = {
-    "existence": 0.35,
-    "location": 0.25,
-    "spatial_relation": 0.20,
-    "attribute": 0.15,
-    "counting": 0.05,
-}
-# unanswerable / ambiguous 数量少且珍贵,降采样时全部保留,不纳入主配比
-KEEP_ALL_TYPES = ("unanswerable", "ambiguous")
+from src.sampling import SCHEDULE_DIST
+from src.validator import CONTEXTUAL_RISK_PATTERNS, HARD_RISK_WORDS
+
+# 拒答类:数量少、珍贵,降采样时全部保留,不纳入主配比
 REFUSAL_TYPES = ("unanswerable", "ambiguous")
+KEEP_ALL_TYPES = REFUSAL_TYPES
 
-REFUSAL_RE = re.compile(r"无法|不确定|难以确认|不能确定|可能是.*也可能")
+# 降采样用的主类型配比 = SCHEDULE_DIST 去掉拒答类后归一化到 1.0
+_MAIN = {k: v for k, v in SCHEDULE_DIST.items() if k not in REFUSAL_TYPES}
+_MAIN_SUM = sum(_MAIN.values()) or 1.0
+TARGET_DIST = {k: v / _MAIN_SUM for k, v in _MAIN.items()}
 
-
-def extract(tag, s):
-    m = re.search(rf"<{tag}>(.*?)</{tag}>", s, re.S)
-    return m.group(1).strip() if m else ""
+# 拒答/不确定表达(含教师护栏用语"看不清/无法确认")
+REFUSAL_RE = re.compile(r"无法|不确定|难以确认|不能确定|看不清|可能是.*也可能")
+# 残留格式标签(纯蒸馏后应为 0)
+TAG_RE = re.compile(r"</?(analysis|answer)>")
+# 答案啰嗦化阈值(字符):p90 超过即提示"可能报告化"
+LONG_WARN_P90 = 120
 
 
 def load(path):
@@ -43,41 +48,68 @@ def load(path):
     return rows
 
 
+def _risk_hits(text):
+    """返回命中的高风险词/模式(只读扫描,不阻断;纯蒸馏无格式校验,这里替你过一眼)。"""
+    hits = []
+    for w in HARD_RISK_WORDS:
+        if w in text:
+            hits.append(w)
+    for pat in CONTEXTUAL_RISK_PATTERNS:
+        if re.search(pat, text):
+            hits.append("精确数值/单位")
+            break
+    return hits
+
+
 def report(rows, top_n=12, threshold=0.20):
-    """打印体检报告,返回是否触发红线(True=有问题)。"""
+    """打印体检报告,返回是否触发红线(True=有问题)。
+
+    硬红线只 3 条:类型熵 < 0.7、问题前缀 top3 > 60%、答案开头单一 > threshold。
+    其余项只告警,不影响返回值。
+    """
     n = len(rows)
-    ans_open = Counter()
-    ana_open = Counter()
-    q_prefix = Counter()      # 问题前缀(塌缩监控)
+    if n == 0:
+        print("数据为空")
+        return False
+
     qtype = Counter()
-    mode = Counter()
+    q_prefix = Counter()       # 问题前缀(塌缩监控)
+    ans_open = Counter()       # 答案开头(塌缩监控,跑在完整答案上)
     len_by_type = defaultdict(list)
+    all_len = []
     refusal_total = refusal_ok = 0
+    tag_residual = 0
+    risk_rows = 0
+    risk_words = Counter()
     cjk = cyr = total_chars = 0
 
     for o in rows:
-        meta = o.get("meta", {})
-        qt = meta.get("question_type", "?")
-        am = meta.get("answer_mode") or ("analysis" if "<analysis>" in o["messages"][1]["content"] else "direct")
+        qt = o.get("meta", {}).get("question_type", "?")
         qtype[qt] += 1
-        mode[am] += 1
 
-        content = o["messages"][1]["content"]
+        answer = o["messages"][1]["content"]          # 纯蒸馏:整条就是答案,无标签
         question = o["messages"][0]["content"].replace("<image>", "").strip()
-        answer = extract("answer", content)
-        analysis = extract("analysis", content)
-        ans_open[answer[:12]] += 1
+
         q_prefix[question[:6]] += 1
-        if analysis:
-            ana_open[analysis.lstrip()[:14]] += 1
+        ans_open[answer[:12]] += 1
         len_by_type[qt].append(len(answer))
+        all_len.append(len(answer))
 
         if qt in REFUSAL_TYPES:
             refusal_total += 1
             if REFUSAL_RE.search(answer):
                 refusal_ok += 1
 
-        for ch in content:
+        if TAG_RE.search(answer):
+            tag_residual += 1
+
+        hits = _risk_hits(answer)
+        if hits:
+            risk_rows += 1
+            for w in hits:
+                risk_words[w] += 1
+
+        for ch in answer:
             total_chars += 1
             c = ord(ch)
             if 0x4E00 <= c <= 0x9FFF:
@@ -86,70 +118,80 @@ def report(rows, top_n=12, threshold=0.20):
                 cyr += 1
 
     red = False
-    print(f"\n{'='*64}\n数据体检报告  共 {n} 条\n{'='*64}")
+    print(f"\n{'='*64}\n数据体检报告(纯蒸馏)  共 {n} 条\n{'='*64}")
 
-    # ── 问题侧:分布塌缩监控(reviewer 认为最危险,放最前) ──
-    # [1] question_type 配比 + 归一化熵
-    print(f"\n[1] question_type 配比 vs 目标（含归一化熵）")
-    types_all = list(TARGET_DIST) + list(KEEP_ALL_TYPES)
-    for qt in types_all:
+    # ── 问题侧:分布塌缩(最危险,放最前;与答案格式无关,始终有效) ──
+    # [1] question_type 配比 + 归一化熵  [红线: 熵 < 0.7]
+    print("\n[1] question_type 配比 vs 目标(SCHEDULE_DIST) + 归一化熵")
+    for qt in SCHEDULE_DIST:
         cnt = qtype.get(qt, 0)
-        tgt = TARGET_DIST.get(qt)
-        cur = cnt / n if n else 0
-        tgt_s = f"目标 {tgt:.0%}" if tgt is not None else "目标 少量"
-        flag = "  <-- 偏高" if (tgt is not None and cur > tgt * 2) else ""
-        print(f"  {qt:16s} {cnt:5d}  当前 {cur:6.1%}  {tgt_s}{flag}")
+        tgt = SCHEDULE_DIST[qt]
+        cur = cnt / n
+        flag = "  <-- 偏高" if cur > tgt * 1.5 else ("  <-- 偏低" if cur < tgt * 0.5 else "")
+        print(f"  {qt:16s} {cnt:5d}  当前 {cur:6.1%}  目标 {tgt:5.0%}{flag}")
+    for qt in qtype:
+        if qt not in SCHEDULE_DIST:
+            print(f"  {qt:16s} {qtype[qt]:5d}  当前 {qtype[qt]/n:6.1%}  (非目标类型)")
     ent = _norm_entropy(qtype)
-    print(f"  归一化熵 = {ent:.2f}（1=完全均匀，越低越偏；< 0.7 视为类型分布失衡）"
-          + ("  <-- 偏低" if ent < 0.7 else ""))
+    print(f"  归一化熵 = {ent:.2f}(1=完全均匀,越低越偏;< 0.7 视为类型分布失衡)"
+          + ("  <-- 偏低[红线]" if ent < 0.7 else ""))
     if ent < 0.7:
         red = True
 
-    # [2] 问题前缀塌缩(Question Distribution Collapse)
-    print(f"\n[2] 问题前缀 Top{top_n}（红线: 前 3 前缀合计 > 60%）")
-    top3 = sum(v for _, v in q_prefix.most_common(3)) / n if n else 0
+    # [2] 问题前缀塌缩(Question Distribution Collapse)  [红线: top3 > 60%]
+    print(f"\n[2] 问题前缀 Top{top_n}  [红线: 前 3 前缀合计 > 60%]")
+    top3 = sum(v for _, v in q_prefix.most_common(3)) / n
     for k, v in q_prefix.most_common(top_n):
         print(f"  {v/n:6.1%}  {k!r}")
-    print(f"  前 3 前缀合计 = {top3:.1%}" + ("  <-- 塌缩!问题多样性不足" if top3 > 0.60 else ""))
+    print(f"  前 3 前缀合计 = {top3:.1%}" + ("  <-- 塌缩!问题多样性不足[红线]" if top3 > 0.60 else ""))
     if top3 > 0.60:
         red = True
 
-    # ── 答案侧:过度模板化监控 ──
-    print(f"\n[3] <answer> 开头 Top{top_n}（红线: 单一开头 > {threshold:.0%}）")
+    # ── 答案侧:全部跑在完整答案文本上 ──
+    # [3] 答案开头塌缩  [红线: 单一开头 > threshold]
+    print(f"\n[3] 答案开头(前12字) Top{top_n}  [红线: 单一开头 > {threshold:.0%}]")
     red |= _print_open(ans_open, n, top_n, threshold)
-    print(f"\n[4] <analysis> 开头 Top{top_n}（红线: 单一开头 > {threshold:.0%}）")
-    red |= _print_open(ana_open, sum(ana_open.values()), top_n, threshold)
 
-    # [5] answer_mode 比例(是否达标 analysis/direct)
-    print(f"\n[5] answer_mode 比例")
-    for m, c in mode.most_common():
-        print(f"  {m:10s} {c:5d}  {c/n:6.1%}")
-    if mode.get("direct", 0) == 0:
-        print("  <-- 警告: 没有 direct 直答样本,全部带 analysis,过度模板化风险高")
-        red = True
-
-    # [6] 各题型 answer 长度
-    print(f"\n[6] 各题型 <answer> 长度（平均 / 中位）")
+    # [4] 答案长度 + 啰嗦化告警(答案变长篇报告是头号要避免项)
+    print(f"\n[4] 答案长度(字符)  [告警: p90 > {LONG_WARN_P90}]")
+    p90 = sorted(all_len)[min(n - 1, int(n * 0.9))]
+    print(f"  总体: 平均 {statistics.mean(all_len):5.1f}  中位 {statistics.median(all_len):.0f}"
+          f"  p90 {p90}  最长 {max(all_len)}"
+          + ("  <-- p90 偏长,可能报告化(告警)" if p90 > LONG_WARN_P90 else ""))
     for qt, ls in sorted(len_by_type.items()):
-        print(f"  {qt:16s} n={len(ls):5d}  平均 {statistics.mean(ls):5.1f}  中位 {statistics.median(ls):.0f}")
+        print(f"  {qt:16s} n={len(ls):5d}  平均 {statistics.mean(ls):5.1f}"
+              f"  中位 {statistics.median(ls):5.0f}  最长 {max(ls):5d}")
 
-    # [7] 拒答率(目标 5%-10%) + 编码
-    print(f"\n[7] 其他")
-    refusal_share = refusal_total / n if n else 0
-    band = "" if 0.05 <= refusal_share <= 0.10 else "  <-- 不在 5%-10% 目标带"
-    print(f"  拒答类(unanswerable+ambiguous)占比: {refusal_total}/{n} = {refusal_share:.1%}{band}")
+    # [5] 拒答类正确率(在完整答案上判不确定表达)  [告警: < 90%]
+    print("\n[5] 拒答类(unanswerable+ambiguous)  [告警: 正确给出不确定表达 < 90%]")
+    share = refusal_total / n
+    band = "" if 0.05 <= share <= 0.10 else "  (不在 5%-10% 目标带)"
+    print(f"  占比: {refusal_total}/{n} = {share:.1%}{band}")
     if refusal_total:
         rate = refusal_ok / refusal_total
-        print(f"  拒答类正确给出不确定/多解表达: {refusal_ok}/{refusal_total} = {rate:.0%}"
-              + ("  <-- 偏低,部分拒答题被强答" if rate < 0.9 else ""))
+        print(f"  正确给出不确定/多解表达: {refusal_ok}/{refusal_total} = {rate:.0%}"
+              + ("  <-- 偏低,部分拒答题被强答(告警)" if rate < 0.9 else ""))
     else:
-        print("  拒答类: 0 条（建议构造 5%-10%）")
+        print("  拒答类: 0 条(建议构造 5%-10%)")
+
+    # [6] 残留格式标签自检(纯蒸馏应为 0)  [告警]
+    print(f"\n[6] 残留 <analysis>/<answer> 标签: {tag_residual} 条"
+          + ("  <-- 蒸馏 prompt 可能漏网(告警)" if tag_residual else "  (干净)"))
+
+    # [7] 越界/高风险词扫描(只读,替代已撤掉的格式校验)  [告警]
+    print(f"\n[7] 越界/高风险词命中: {risk_rows} 条 ({risk_rows/n:.1%})"
+          + ("  <-- 建议人工抽看这些(告警)" if risk_rows else "  (无)"))
+    for w, c in risk_words.most_common(top_n):
+        print(f"  {c:5d}  {w}")
+
+    # [8] 编码自检(乱码)
     cyr_rate = cyr / total_chars if total_chars else 0
-    print(f"  编码自检: 中文 {cjk/total_chars:.0%}  西里尔(乱码嫌疑) {cyr_rate:.2%}"
+    print(f"\n[8] 编码自检: 中文 {cjk/total_chars:.0%}  西里尔(乱码嫌疑) {cyr_rate:.2%}"
           + ("  <-- 注意可能乱码" if cyr_rate > 0.005 else "  (正常)"))
 
     print(f"\n{'='*64}")
-    print("结论: " + ("[!] 触发红线,建议处理后再发布" if red else "[OK] 未触发红线"))
+    print("结论: " + ("[!] 触发红线,建议处理后再发布"
+                      if red else "[OK] 未触发红线(告警项见上,纯蒸馏靠人工抽检兜底)"))
     print('='*64)
     return red
 
