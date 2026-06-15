@@ -402,10 +402,14 @@ python 05_baseline.py
 # 默认读 val.jsonl、打基线 8002、写 outputs/baseline/val_pred.jsonl
 
 # ======== ⑤ 人工审核 + 模型对比(浏览器,两个模式) ========
-python 02_review.py --predictions outputs/baseline/val_pred.jsonl
+# --predictions 可多次传入,每次 "标签=路径",前端按顺序并排展示每个模型一列
+python 02_review.py \
+  --predictions 2B未微调=outputs/baseline/val_pred.jsonl \
+  --predictions 教师=outputs/baseline/val_pred2.jsonl \
+  --predictions 2B微调后=outputs/baseline/val_pred3.jsonl
 # 打开 http://127.0.0.1:8008
 #   模式① 人工审批蒸馏数据:逐条通过/不通过 -> outputs/manual_reviews.jsonl
-#   模式② 两个模型输出对比:教师 vs 学生并排(自动只看有预测的样本)
+#   模式② 多模型输出对比:每个 --predictions 一列并排(自动只看有预测的样本)
 
 # ======== ⑥ SFT 训练(Unsloth,Qwen3-VL + LoRA,仅 Linux+GPU) ========
 # 04_train.py 扁平脚本(无命令行参数):超参直接改脚本顶部各 section 常量
@@ -515,14 +519,31 @@ http://127.0.0.1:8008
 |---|---|---|
 | `--input` | `outputs/03_answers_sft.jsonl` | 要审核的 SFT JSONL，由 `01_generate.py` 产出 |
 | `--reviews` | `outputs/manual_reviews.jsonl` | 审核结果落盘文件（不存在会自动创建） |
+| `--predictions` | 无 | 模型预测 JSONL，写成 `标签=路径`，**可多次传入**做多模型并排对比；只给路径时用文件名当标签 |
 | `--host` | `127.0.0.1` | 监听地址，默认仅本机访问；要别的机器访问改 `0.0.0.0` |
 | `--port` | `8008` | 监听端口 |
+
+### 多模型对比（模式②）
+
+`--predictions` 重复传入即可同时对比任意多个模型，前端在「② 多模型输出对比」模式下按传入顺序每个模型一列并排展示：
+
+```bash
+python 02_review.py \
+  --predictions 2B未微调=outputs/baseline/val_pred.jsonl \
+  --predictions 教师=outputs/baseline/val_pred2.jsonl \
+  --predictions 2B微调后=outputs/baseline/val_pred3.jsonl
+```
+
+- 每个 JSONL 是 `05_baseline.py` 风格（`{image, question, prediction}`），按 `image|question` 与审核样本对齐。
+- 对比模式自动只显示「至少有一个模型出了预测」的样本；某模型对某条无预测时该列显示「（无预测）」。
+- 不传 `--predictions` 时模式②为空，模式①（人工审批）不受影响。
 
 ### 界面功能
 
 - **左右分栏布局**：左侧大图，右侧问题 / 答案 / 自动质检 / 审批操作；不需要上下滚页。
 - **审批操作**：单条样本进行 `通过 / 不通过` 判定，可写备注。
 - **筛选**：`未审批 / 全部 / 仅通过 / 仅不通过` 四种过滤模式。
+- **多模型对比**：模式② 按 `--predictions` 顺序并排展示每个模型一列（见上）。
 - **审批结果**：写入 `outputs/manual_reviews.jsonl`，**幂等覆盖**——同一样本多次审批以最后一次为准。
 - **吸底操作栏**：长答案在右侧滚动时，"通过/不通过"按钮始终保持在视野内。
 

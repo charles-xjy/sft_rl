@@ -13,7 +13,7 @@
 
       <div class="modeSwitch">
         <button id="modeReviewBtn" class="modeBtn active">① 人工审批蒸馏数据</button>
-        <button id="modeCompareBtn" class="modeBtn">② 两个模型输出对比</button>
+        <button id="modeCompareBtn" class="modeBtn">② 多模型输出对比</button>
       </div>
 
       <div class="summary" id="summary"></div>
@@ -55,19 +55,10 @@
           <pre id="answerReview" class="textBlock pre"></pre>
         </div>
 
-        <!-- 对比模式: 教师 vs 学生 并排 -->
+        <!-- 对比模式: 多模型并排（蒸馏标签 + 每个 --predictions 一列） -->
         <div class="card modeCompare">
           <h2>答案对比</h2>
-          <div class="compare">
-            <div class="compareCol">
-              <h3 class="teacherLabel">教师</h3>
-              <pre id="answerTeacher" class="textBlock pre"></pre>
-            </div>
-            <div class="compareCol">
-              <h3 class="studentLabel">学生</h3>
-              <pre id="prediction" class="textBlock pre"></pre>
-            </div>
-          </div>
+          <div class="compare" id="compareCols"></div>
         </div>
 
         <div class="card">

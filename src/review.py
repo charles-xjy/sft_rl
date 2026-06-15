@@ -44,9 +44,9 @@ def load_samples(input_path: Path) -> list:
 
 
 def load_predictions(path: Path) -> dict:
-    """加载模型预测(05_baseline.py 风格: {image, question, prediction})。
+    """加载单个模型预测(05_baseline.py 风格: {image, question, prediction})。
 
-    按 `image|question` 建键,与样本 id 对齐,用于在前端对比教师 vs 学生答案。
+    按 `image|question` 建键,与样本 id 对齐,用于在前端对比多个模型的答案。
     文件不存在则返回空 dict(对比功能为可选)。
     """
     preds: dict = {}
@@ -61,6 +61,34 @@ def load_predictions(path: Path) -> dict:
             except Exception:
                 continue
     return preds
+
+
+def parse_prediction_specs(specs) -> list:
+    """把命令行 --predictions 列表解析成有序的 (label, Path) 列表。
+
+    每项写成 `标签=路径`(如 `未微调=outputs/baseline/val_pred.jsonl`);
+    只给路径时用文件名(去扩展名)当标签。保持传入顺序 = 前端列顺序。
+    """
+    parsed = []
+    for spec in specs or []:
+        if "=" in spec:
+            label, raw_path = spec.split("=", 1)
+            label = label.strip()
+        else:
+            raw_path, label = spec, Path(spec).stem
+        parsed.append((label, Path(raw_path.strip())))
+    return parsed
+
+
+def load_prediction_sets(specs) -> list:
+    """加载多个模型预测集,返回 [{"label":..., "map": {id: prediction}}]。
+
+    顺序与命令行传入一致,前端按此顺序并排展示每个模型一列。
+    """
+    return [
+        {"label": label, "map": load_predictions(path)}
+        for label, path in parse_prediction_specs(specs)
+    ]
 
 
 def load_reviews(review_path: Path) -> dict:
@@ -84,9 +112,12 @@ def persist_reviews(review_path: Path, reviews: dict) -> None:
             f.write(json.dumps(review, ensure_ascii=False) + "\n")
 
 
-def make_handler(samples: list, review_path: Path, static_dir: Path, predictions: dict = None):
+def make_handler(samples: list, review_path: Path, static_dir: Path, prediction_sets: list = None):
     reviews = load_reviews(review_path)
-    predictions = predictions or {}
+    prediction_sets = prediction_sets or []
+
+    def has_any_prediction(sample_id: str) -> bool:
+        return any(sample_id in ps["map"] for ps in prediction_sets)
 
     class ReviewHandler(BaseHTTPRequestHandler):
         def _send_json(self, payload, status: int = 200) -> None:
@@ -111,11 +142,16 @@ def make_handler(samples: list, review_path: Path, static_dir: Path, predictions
 
         def _sample_payload(self, sample: dict) -> dict:
             review = reviews.get(sample["id"])
+            # 每个模型一列：{label, text}，缺失则 text=None，前端显示"（无预测）"
+            predictions = [
+                {"label": ps["label"], "text": ps["map"].get(sample["id"])}
+                for ps in prediction_sets
+            ]
             return {
                 **sample,
                 "image_url": f"/api/image?path={quote(sample['image_path'])}",
                 "review": review,
-                "prediction": predictions.get(sample["id"]),   # 学生模型答案(无则 None)
+                "predictions": predictions,
             }
 
         def do_GET(self) -> None:
@@ -132,7 +168,7 @@ def make_handler(samples: list, review_path: Path, static_dir: Path, predictions
                         continue
                     if filter_mode == "rejected" and reviews.get(sample["id"], {}).get("decision") != "rejected":
                         continue
-                    if filter_mode == "compare" and sample["id"] not in predictions:
+                    if filter_mode == "compare" and not has_any_prediction(sample["id"]):
                         continue
                     payload.append(self._sample_payload(sample))
                 self._send_json({
@@ -142,7 +178,8 @@ def make_handler(samples: list, review_path: Path, static_dir: Path, predictions
                         "reviewed": len(reviews),
                         "approved": sum(1 for r in reviews.values() if r["decision"] == "approved"),
                         "rejected": sum(1 for r in reviews.values() if r["decision"] == "rejected"),
-                        "with_prediction": sum(1 for s in samples if s["id"] in predictions),
+                        "with_prediction": sum(1 for s in samples if has_any_prediction(s["id"])),
+                        "models": [ps["label"] for ps in prediction_sets],
                     },
                 })
                 return
@@ -206,12 +243,16 @@ def serve(args) -> None:
     static_dir = PROJECT_ROOT / "review" / "ui"
 
     samples = load_samples(input_path)
-    predictions = load_predictions(Path(args.predictions)) if getattr(args, "predictions", None) else {}
-    handler = make_handler(samples, review_path, static_dir, predictions)
+    prediction_sets = load_prediction_sets(getattr(args, "predictions", None))
+    handler = make_handler(samples, review_path, static_dir, prediction_sets)
     server = ThreadingHTTPServer((args.host, args.port), handler)
 
     print(f"review_items: {len(samples)}")
-    print(f"predictions_loaded: {len(predictions)}（学生答案对比；0 表示未传 --predictions 或文件为空）")
+    if prediction_sets:
+        for ps in prediction_sets:
+            print(f"  model[{ps['label']}]: {len(ps['map'])} 条预测")
+    else:
+        print("predictions_loaded: 0（未传 --predictions，对比模式无内容）")
     print(f"review_file: {review_path}")
     print(f"url: http://{args.host}:{args.port}")
     server.serve_forever()

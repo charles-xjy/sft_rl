@@ -162,7 +162,7 @@ textarea {
 
 .compare {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
 }
 
@@ -187,15 +187,9 @@ textarea {
   color: #2563a3;
 }
 
-#prediction.empty {
+.compareCol pre.empty {
   color: #94a3b0;
   font-style: italic;
-}
-
-@media (max-width: 1300px) {
-  .compare {
-    grid-template-columns: 1fr;
-  }
 }
 
 .decision {

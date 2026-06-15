@@ -21,14 +21,16 @@ async function loadItems() {
 function renderSummary() {
   const s = state.summary || { total: 0, reviewed: 0, approved: 0, rejected: 0, with_prediction: 0 };
   if (state.mode === "compare") {
+    const models = s.models || [];
     document.getElementById("summary").innerHTML = `
       <p>总样本: <strong>${s.total}</strong></p>
-      <p>有学生答案: <strong>${s.with_prediction ?? 0}</strong></p>
+      <p>有预测样本: <strong>${s.with_prediction ?? 0}</strong></p>
+      <p>对比模型: <strong>${models.length}</strong></p>
     `;
     const hint = document.getElementById("compareHint");
-    hint.textContent = (s.with_prediction ?? 0) === 0
-      ? "未加载学生预测：启动时传 --predictions 指向 05_baseline.py 的输出。"
-      : `对比集：${s.with_prediction} 条有学生答案。`;
+    hint.textContent = models.length === 0
+      ? "未加载模型预测：启动时用 --predictions 标签=路径 传入（可多次）。"
+      : `对比模型：${models.join(" / ")}（${s.with_prediction} 条有预测）。`;
   } else {
     document.getElementById("summary").innerHTML = `
       <p>总数: <strong>${s.total}</strong></p>
@@ -43,11 +45,39 @@ function clearDetail() {
   document.getElementById("image").src = "";
   document.getElementById("question").textContent = "";
   document.getElementById("answerReview").textContent = "";
-  document.getElementById("answerTeacher").textContent = "";
-  document.getElementById("prediction").textContent = "";
+  document.getElementById("compareCols").innerHTML = "";
   document.getElementById("meta").textContent = "";
   document.getElementById("reviewStatus").textContent = "";
   document.getElementById("note").value = "";
+}
+
+// 对比模式：按 item.predictions 顺序，每个模型渲染一列
+function renderCompareColumns(item) {
+  const container = document.getElementById("compareCols");
+  container.innerHTML = "";
+  const preds = item.predictions || [];
+  if (!preds.length) {
+    container.innerHTML = `<p class="hint">未加载模型预测：启动时用 --predictions 标签=路径 传入（可多次）。</p>`;
+    return;
+  }
+  for (const p of preds) {
+    const col = document.createElement("div");
+    col.className = "compareCol";
+    const h3 = document.createElement("h3");
+    h3.className = "studentLabel";
+    h3.textContent = p.label;
+    const pre = document.createElement("pre");
+    pre.className = "textBlock pre";
+    if (p.text == null) {
+      pre.textContent = "（无预测）";
+      pre.classList.add("empty");
+    } else {
+      pre.textContent = p.text;
+    }
+    col.appendChild(h3);
+    col.appendChild(pre);
+    container.appendChild(col);
+  }
 }
 
 function render() {
@@ -72,11 +102,8 @@ function render() {
     : "当前状态: 未审批";
   document.getElementById("note").value = item.review?.note || "";
 
-  // 对比模式: 教师 vs 学生
-  document.getElementById("answerTeacher").textContent = item.answer;
-  const predEl = document.getElementById("prediction");
-  predEl.textContent = item.prediction == null ? "（无学生预测）" : item.prediction;
-  predEl.classList.toggle("empty", item.prediction == null);
+  // 对比模式: 多模型并排
+  renderCompareColumns(item);
 }
 
 async function saveReview(decision) {

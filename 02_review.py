@@ -17,9 +17,13 @@ def main():
     p = argparse.ArgumentParser(description="启动本地人工审批服务")
     p.add_argument("--input", default="outputs/03_answers_sft.jsonl", help="要审核的 SFT JSONL")
     p.add_argument("--reviews", default="outputs/manual_reviews.jsonl", help="审核结果输出 JSONL 路径")
-    p.add_argument("--predictions", default=None,
-                   help="学生模型预测 JSONL（05_baseline.py 风格 {image,question,prediction}）；"
-                        "传入后前端可对比教师 vs 学生答案。如 outputs/baseline/val_pred.jsonl")
+    p.add_argument("--predictions", action="append", default=None, metavar="LABEL=PATH",
+                   help="模型预测 JSONL（05_baseline.py 风格 {image,question,prediction}）；"
+                        "可多次传入做多模型并排对比，每次写成 标签=路径。例如：\n"
+                        "  --predictions 2B未微调=outputs/baseline/val_pred.jsonl \\\n"
+                        "  --predictions 教师=outputs/baseline/val_pred2.jsonl \\\n"
+                        "  --predictions 2B微调后=outputs/baseline/val_pred3.jsonl\n"
+                        "只给路径时用文件名当标签。")
     p.add_argument("--host", default="127.0.0.1", help="监听地址；要别的机器访问改 0.0.0.0")
     p.add_argument("--port", type=int, default=8008, help="监听端口")
     args = p.parse_args()
