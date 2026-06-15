@@ -126,18 +126,20 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve Qwen/Qwen3.5-27B \
 供 `05_baseline.py` 跑基线预测。2B 很小，单卡足够、显存占比给低即可（可与别的服务共卡）。
 
 ```bash
-# 选一张空闲卡（训练已钉 GPU 1，教师 27B 占 1,2，这里用一张没被占的）
-CUDA_VISIBLE_DEVICES=3 \
+# 选一张空闲卡（按需改 CUDA_VISIBLE_DEVICES）
+CUDA_VISIBLE_DEVICES=0 \
 vllm serve /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct \
   --served-model-name Qwen3-VL-2B-Instruct \
   --trust-remote-code \
   --dtype bfloat16 \
   --enable-prefix-caching \
-  --gpu-memory-utilization 0.5 \
+  --gpu-memory-utilization 0.7 \
   --max-model-len 8192 \
+  --no-enable-chunked-prefill \
   --port 8002
 ```
 
+> - `--no-enable-chunked-prefill`：关分块预填充，避免多模态(图像 token)在分块下的兼容问题。
 > - 服务地址固定在 `http://10.129.107.145:8002/v1`（全项目服务都在这台机，不是 localhost）。
 > - 模型名不用记：`05_baseline.py` / `VLMClient` 会自动探测 `/v1/models` 返回的名字。
 > - 微调训练完成后，把**合并后的学生权重**用同样的命令换路径起一个服务（端口随意），
@@ -382,60 +384,58 @@ with open('outputs/03_answers_sft.jsonl') as f:
 
 ## 完整运行流程（从零到训练集）
 
-整条链路：**起 vLLM → 生成数据（自动体检）→ 人工抽检 → 转换 + 降采样 → SFT 训练**，
-对应 4 个入口 `01~04`。下面命令可直接复制。
+整条链路按实际顺序：**起服务 → ① 构造数据 → ② 数据报告 → ③ 切训练/评测集 → ④ 小模型 baseline → ⑤ 人工审核 + 模型对比 → ⑥ 训练**。涉及入口 `01_generate / 03_convert / 05_baseline / 02_review / 04_train`。所有 vLLM 服务都在 `10.129.107.145`（教师 :8001、基线 :8002，详见 [启动vLLM服务](#启动vllm服务)）。
 
-> 前提：图像数据集在 `--dataset-root`（默认 `dataset/`）下；把 `http://你的服务器:8001` 换成你的 vLLM 地址。
+> 前提：图像数据集在 `--dataset-root`（默认 `dataset/`）下。下面命令在那台 Linux 机上跑（图片和服务都在那）。
 
 ```bash
-# ======== Step 0. 起教师模型（vLLM，OpenAI 兼容口）。详见“启动vLLM服务”节 ========
-CUDA_VISIBLE_DEVICES=1,2 \
-vllm serve Qwen/Qwen3.5-27B \
-  --trust-remote-code \
-  --dtype bfloat16 \
-  --tensor-parallel-size 2 \
-  --gpu-memory-utilization 0.9 \
-  --max-model-len 8192 \
-  --enable-prefix-caching \
-  --port 8001
+# ======== Step 0. 起两个服务：教师(8001) + 未微调基线(8002) ========
+# 教师 Qwen3.5-27B(造数据用)、基线 Qwen3-VL-2B(对照用)各起一个,命令见"启动vLLM服务"节
 
-# ======== Step 1. 生成数据（三阶段并行）。结束后自动跑一次体检 ========
-# --num-images：本次抽多少张图（不是样本数）。
+# ======== ① 构造数据(三阶段并行)。结束后自动出一次数据报告 ========
 python 01_generate.py \
   --dataset-root dataset \
   --datasets "LEVIR-CD+,SECOND" \
   --num-images 1000 \
   --num-questions 5 --min-questions 2 \
   --max-concurrency 24 \
-  --base-url http://你的服务器:8001/v1
-# 产出：outputs/01_descriptions.jsonl / 02_questions.jsonl / 03_answers_sft.jsonl
-#       outputs/sample_manifest.jsonl（本次抽样清单，复现/续跑用）
+  --base-url http://10.129.107.145:8001/v1
+# 产出 outputs/03_answers_sft.jsonl(+ descriptions/questions/manifest)
 
-# ======== Step 2. 人工抽检（浏览器）。发布前必经一步 ========
-python 02_review.py                # 打开 http://127.0.0.1:8008，逐条通过/不通过
-# 审批结果写入 outputs/manual_reviews.jsonl
+# ======== ② 数据报告(①末尾已自动跑一次;想单独再看就这条) ========
+python -c "from src import health; health.report(health.load('outputs/03_answers_sft.jsonl'))"
+# 看 3 条红线(类型熵/问题前缀塌缩/答案开头塌缩) + 告警(啰嗦/越界词/拒答率/残留标签)
 
-# ======== Step 3. 转 Unsloth 训练集 + 过滤 + 降采样（在 Linux 训练机上跑） ========
-# --image-root 改成训练机上 dataset 的真实绝对路径；--rebalance 按配比降采样
-python 03_convert.py \
-  --image-root /your/abs/path/to/dataset \
-  --rebalance \
-  --check-images
+# ======== ③ 切训练/评测集(给 baseline 和训练用)。纯蒸馏默认全保留 ========
+python 03_convert.py --val-ratio 0.05
 # 产出 outputs/sft/train.jsonl 与 val.jsonl
+# 注:数据里图片路径已是训练机 Linux 路径,无需 --image-root;在别处跑才需传
 
-# ======== Step 4. SFT 训练（Unsloth Core，Qwen3-VL + LoRA，仅 Linux+GPU） ========
-# 04_train.py 是扁平脚本（无命令行参数）：超参直接改脚本顶部各 section 的常量
+# ======== ④ 小模型 baseline:未微调模型在 val 上的预测,作微调对照 ========
+python 05_baseline.py
+# 默认读 val.jsonl、打基线 8002、写 outputs/baseline/val_pred.jsonl
+
+# ======== ⑤ 人工审核 + 模型对比(浏览器,两个模式) ========
+python 02_review.py --predictions outputs/baseline/val_pred.jsonl
+# 打开 http://127.0.0.1:8008
+#   模式① 人工审批蒸馏数据:逐条通过/不通过 -> outputs/manual_reviews.jsonl
+#   模式② 两个模型输出对比:教师 vs 学生并排(自动只看有预测的样本)
+
+# ======== ⑥ SFT 训练(Unsloth,Qwen3-VL + LoRA,仅 Linux+GPU) ========
+# 04_train.py 扁平脚本(无命令行参数):超参直接改脚本顶部各 section 常量
 python 04_train.py
 ```
 
-> 训练细节、参数与数据格式说明见下文 [SFT 训练（Unsloth / Qwen3-VL）](#sft-训练unsloth--qwen3-vl)。
+> 训练细节、参数与数据格式见下文 [SFT 训练（Unsloth / Qwen3-VL）](#sft-训练unsloth--qwen3-vl)。
+> **训完做"教师 vs 微调学生"对比**：把合并后的学生权重另起一个服务，
+> `python 05_baseline.py --base-url http://10.129.107.145:<port>/v1` 重出预测，再回到 ⑤ 的模式②。
 
 **几个要点：**
 
-- **`--num-images` 是"抽几张图"，不是"生成几条样本"。** 每张图出 2-5 个问题、每问 1 答，所以样本数 ≈ 图数 × 3 上下。
-- Step 1 跑完会**自动体检**（只读，打印配比/塌缩/拒答率/编码报告 + 红线告警），不想要就加 `--no-health-check`。
-- **降采样（`03_convert.py --rebalance`）建议在人工抽检之后再开**：它会按配比剔样本（主要压 counting），应有意识地在质检闸之后用，不要图省事提前降。
-- 想单独再看体检报告：`python -c "from src import health; health.report(health.load('outputs/03_answers_sft.jsonl'))"`
+- **`--num-images` 是"抽几张图"，不是"生成几条样本"。** 每张图出 2-5 个问题、每问 1 答，样本数 ≈ 图数 × 3 上下。
+- **② 数据报告是诊断不是闸门**：纯蒸馏没有格式校验，真正的质量闸是 ⑤ 的人工审核；红线只卡分布塌缩。`01_generate.py --no-health-check` 可关掉自动报告。
+- **③ 为什么排在 baseline 之前**：baseline(④)和训练(⑥)都读 `outputs/sft/{val,train}.jsonl`，所以先切。
+- **(可选)降采样**：`03_convert.py --rebalance` 按配比剔样本（主要压 counting）；建议人工审核之后再开，别提前降。
 
 ### 默认采样规模
 
@@ -466,7 +466,7 @@ python 04_train.py
 - 如果确实要重新抽样，显式传 `--refresh-manifest`
 - 三阶段全部完成后，会**自动跑一次只读数据体检**并打印报告（`--no-health-check` 可关）
 
-完成数据生成后，进入 [人工审批前端](#人工审批前端) 完成抽样人工质检，再做 [数据体检与降采样](#数据体检与降采样)。
+各步详情分见：数据报告/降采样 → [数据体检与降采样](#数据体检与降采样)；人工审核 + 模型对比前端 → [人工审批前端](#人工审批前端)；训练 → [SFT 训练（Unsloth / Qwen3-VL）](#sft-训练unsloth--qwen3-vl)。
 
 ---
 
