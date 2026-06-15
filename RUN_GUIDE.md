@@ -135,11 +135,13 @@ vllm serve /home/charles/.cache/modelscope/hub/models/Qwen/Qwen3-VL-2B-Instruct 
   --enable-prefix-caching \
   --gpu-memory-utilization 0.7 \
   --max-model-len 8192 \
-  --no-enable-chunked-prefill \
+  --enforce-eager \
   --port 8002
 ```
 
-> - `--no-enable-chunked-prefill`：关分块预填充，避免多模态(图像 token)在分块下的兼容问题。
+> - `--enforce-eager`：关 CUDA graph，避免 Qwen3-VL 在 V1 引擎下混批触发 deepstack 缓冲越界
+>   （`ValueError: Requested more deepstack tokens than available in buffer`）导致 EngineCore fatal、整个服务挂。
+>   baseline 小批量评测已验证可跑；慢一点但最省心。大批量场景可改用 `--no-enable-chunked-prefill`（保留 graph、只禁混批）。
 > - 服务地址固定在 `http://10.129.107.145:8002/v1`（全项目服务都在这台机，不是 localhost）。
 > - 模型名不用记：`05_baseline.py` / `VLMClient` 会自动探测 `/v1/models` 返回的名字。
 > - 微调训练完成后，把**合并后的学生权重**用同样的命令换路径起一个服务（端口随意），
