@@ -203,7 +203,7 @@ python 01_generate.py --no-health-check
 
 ### Phase 3: 纯蒸馏答案生成（内部）
 
-生成最终的 SFT 训练数据。**把"图像 + 问题"直接交给教师模型，原样收下回答**——不套 `<analysis>`/`<answer>` 格式、不分 analysis/direct、不做格式校验（`ANSWER_DISTILL_PROMPT`）。唯一护栏：看不清就说不确定。连 Phase 1 描述也不传，纯靠教师看图作答。
+生成最终的 SFT 训练数据。**把"图像 + 问题"直接交给教师模型，原样收下回答**——不套 `<analysis>`/`<answer>` 格式、不分 analysis/direct、不做格式校验（`ANSWER_DISTILL_PROMPT`），而且蒸馏 prompt 本身就是原问题文本，不再额外包任何任务说明。连 Phase 1 描述也不传，纯靠教师看图作答。
 
 **输出格式** (`outputs/03_answers_sft.jsonl`):
 ```json
@@ -305,7 +305,7 @@ curl -s http://10.129.107.145:8001/v1/models | python -m json.tool
 
 ### Q: 教师答案质量不稳定 / 偶尔跑题？
 
-纯蒸馏不再做格式校验，答案质量完全取决于教师模型（Qwen3.5-27B）。`meta` 里也不再有 `auto_validation`。把关手段是 [人工抽检](#人工审批前端)——发现系统性问题就回去改 `ANSWER_DISTILL_PROMPT`（`src/prompts.py`）或换更强的教师。
+纯蒸馏不再做格式校验，答案质量完全取决于教师模型（Qwen3.5-27B）。`meta` 里也不再有 `auto_validation`。把关手段是 [人工抽检](#人工审批前端)——发现系统性问题就回去改问题分布、换更强教师，或在必要时重新定义蒸馏策略。
 
 ### Q: 如何调整生成的temperature？
 
@@ -356,10 +356,10 @@ DATASET_CONFIGS = {
 }
 ```
 
-### 4. 调整答案护栏 / 蒸馏 prompt
+### 4. 调整蒸馏 prompt
 
-纯蒸馏没有格式校验，唯一能控答案行为的地方是 `src/prompts.py` 的 `ANSWER_DISTILL_PROMPT`：
-- 想加/改护栏（如"不要给行政建议"），在"唯一要求"里加一行即可——但每多一条约束就多一分把教师往模板腔上拽的风险，克制为上。
+纯蒸馏没有格式校验。当前 `src/prompts.py` 的 `ANSWER_DISTILL_PROMPT` 就是原问题文本本身，不主动约束教师回答行为：
+- 如果你就是要做“纯模仿教师回答分布”的 SFT，不建议继续往这里加任何包装语或护栏。
 - 想换教师风格，直接换 `--model` / `--base-url` 指向更强或不同的模型。
 
 > `src/validator.py` 那套旧格式校验 generation 已不再调用，改它不影响纯蒸馏产出。
@@ -404,7 +404,7 @@ python 01_generate.py \
 
 # ======== ② 数据报告(①末尾已自动跑一次;想单独再看就这条) ========
 python -c "from src import health; health.report(health.load('outputs/03_answers_sft.jsonl'))"
-# 看 3 条红线(类型熵/问题前缀塌缩/答案开头塌缩) + 告警(啰嗦/越界词/拒答率/残留标签)
+# 看 3 条红线(类型熵/问题前缀塌缩/答案开头塌缩) + 告警(长度/越界词/残留标签)
 
 # ======== ③ 切训练/评测集(给 baseline 和训练用)。纯蒸馏默认全保留 ========
 python 03_convert.py --val-ratio 0.05
@@ -476,7 +476,7 @@ python 04_train.py
 体检由 `01_generate.py` 在生成结束后**自动调用**；降采样在 `03_convert.py --rebalance` 时触发。
 
 ```bash
-# 体检（只读）：配比/归一化熵/问题前缀塌缩/答案模板化/拒答率/编码自检
+# 体检（只读）：配比/归一化熵/问题前缀塌缩/答案模板化/长度统计/编码自检
 python -c "from src import health; health.report(health.load('outputs/03_answers_sft.jsonl'))"
 
 # 转换时按目标配比降采样（人工抽检后再开）：主要把 counting 压到 5%
@@ -489,10 +489,10 @@ python 03_convert.py --rebalance --image-root /your/abs/path/to/dataset
 |---|---|---|
 | question_type 归一化熵 | < 0.7（类型分布失衡） | ✅ 有效（问题侧，与答案格式无关） |
 | 问题前缀 Top-3 合计 | > 60%（Question Distribution Collapse） | ✅ 有效（问题侧） |
-| answer / analysis 单一开头 | > 20%（过度模板化） | ⚠️ 失真（按旧格式设计） |
-| 无 direct 直答样本 | 全量带 analysis | ❌ 恒触发误报（纯蒸馏没有 direct 概念） |
+| 单一答案开头占比 | > 20%（过度模板化） | ✅ 有效（回答形态检查） |
+| 答案长度 p90 | > 120（整体报告化） | ✅ 有效（回答形态检查） |
 
-> ⚠️ **答案侧红线已不适配纯蒸馏**：`src/health.py` 的答案侧检查（上表后两行）是为旧 analysis/direct 格式写的，现在会失真甚至恒误报，待按蒸馏形态改写。**问题侧两行仍然可信**。其余指标（拒答率、答案长度、编码乱码）仅提示，不卡红线。
+> 当前 `src/health.py` 已按纯蒸馏形态改写：问题侧关注分布与塌缩，答案侧只关注模板化和长度形态，不再评估拒答率或“是否按护栏回答”。
 
 ---
 
