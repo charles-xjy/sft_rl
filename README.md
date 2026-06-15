@@ -554,3 +554,42 @@ python 04_train.py
 ```
 
 走通后再放大 `--num-images`（生成）/ 把 `max_steps` 注释回去用 `num_train_epochs`（训练）正式跑。
+## 训练后如何使用模型
+
+`04_train.py` 跑完后，通常有两种用法：
+
+1. 不合并，直接加载 `基座模型 + LoRA adapter` 做推理。
+2. 合并 LoRA，把它导出成完整的 16-bit 模型目录。
+
+### 方案一：不合并，直接推理
+
+使用 `07_infer_lora.py` 直接加载 `基座模型 + adapter`：
+
+```bash
+python 07_infer_lora.py \
+  --adapter outputs/qwen3vl-sft-lora \
+  --image /path/to/example.png \
+  --question "图中右侧道路附近是否有建筑？"
+```
+
+这种方式适合训练后先本地抽查几张图，快速验证效果。
+
+### 方案二：合并 LoRA，导出完整模型
+
+使用 `06_merge_lora.py` 导出合并后的 16-bit 完整模型：
+
+```bash
+python 06_merge_lora.py \
+  --adapter outputs/qwen3vl-sft-lora \
+  --out outputs/qwen3vl-sft-lora_merged
+```
+
+如果你想合并某个指定 checkpoint，而不是最终的 adapter 目录，也可以这样：
+
+```bash
+python 06_merge_lora.py \
+  --adapter outputs/qwen3vl-sft-lora/checkpoint-364 \
+  --out outputs/qwen3vl-sft-lora-ckpt364-merged
+```
+
+当你需要部署、交付，或者希望得到一个可单独使用的完整模型目录时，用这种方式。

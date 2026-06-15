@@ -697,3 +697,61 @@ python 04_train.py
 | 路径根目录 | 生成机的 `/home/charles/...` | 训练机真实路径 | 不重映射会找不到图 |
 
 > 说明：我们这套格式是 **LLaMA-Factory / ShareGPT 风格**（`messages` + 平行 `images` + `<image>` 占位符），它本身是业界常见的 VLM SFT 格式，**LLaMA-Factory 能直接读**。只是 **Unsloth 用的是另一套（结构化 content）**，所以中间需要 `03_convert.py` 做一次转换。换句话说不是你的数据"错了"，是两个训练框架的输入约定不同。
+## 训练完成后：直接推理还是先合并
+
+`04_train.py` 跑完后，通常有两条后续路径。
+
+### 方案一：直接用 LoRA adapter 推理
+
+如果你只是想先在本地验证模型效果，不需要立刻导出 merged 模型，就用 `07_infer_lora.py`：
+
+```bash
+python 07_infer_lora.py \
+  --adapter outputs/qwen3vl-sft-lora \
+  --image /path/to/example.png \
+  --question "图中右侧道路附近是否有建筑？"
+```
+
+常用参数：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--adapter` | `outputs/qwen3vl-sft-lora` | LoRA adapter 目录，也可以直接指向某个 `checkpoint-*` |
+| `--image` | 必填 | 输入图片路径 |
+| `--question` | 必填 | 你要问模型的问题 |
+| `--max-new-tokens` | `256` | 最多生成多少新 token |
+| `--temperature` | `0.0` | `0.0` 表示确定性解码；大于 0 才会采样 |
+| `--min-p` | `0.1` | 仅在开启采样时使用的 `min_p` 参数 |
+| `--load-in-4bit` | 关 | 只有你的训练/导出流程本身要求 4bit 时才打开 |
+
+### 方案二：把 LoRA 合并成完整 16-bit 模型
+
+如果你想得到一个可单独部署的完整模型目录，就用 `06_merge_lora.py`：
+
+```bash
+python 06_merge_lora.py \
+  --adapter outputs/qwen3vl-sft-lora \
+  --out outputs/qwen3vl-sft-lora_merged
+```
+
+如果你想合并某个指定 checkpoint：
+
+```bash
+python 06_merge_lora.py \
+  --adapter outputs/qwen3vl-sft-lora/checkpoint-364 \
+  --out outputs/qwen3vl-sft-lora-ckpt364-merged
+```
+
+常用参数：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--adapter` | `outputs/qwen3vl-sft-lora` | LoRA adapter 目录，也可以指向某个 `checkpoint-*` |
+| `--out` | `<adapter>_merged` | 合并后的完整 16-bit 模型输出目录 |
+| `--load-in-4bit` | 关 | 仅 4bit 流程才需要打开；普通 16bit LoRA 保持关闭 |
+
+### 什么时候用哪种方式
+
+- 只是本地快速验效果：优先用 `07_infer_lora.py`
+- 需要部署或交付完整模型：用 `06_merge_lora.py`
+- 想比较不同 checkpoint：把 `--adapter` 指向不同的 `checkpoint-*` 目录即可
