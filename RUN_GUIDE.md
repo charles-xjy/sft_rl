@@ -103,22 +103,6 @@ swift deploy --model Qwen/Qwen3.5-27B \
   --infer-backend vllm
 ```
 
-### 多卡部署示例
-
-```bash
-# 4卡部署
-CUDA_VISIBLE_DEVICES=0,1,2,3 vllm serve Qwen/Qwen3.5-27B \
-  --trust-remote-code \
-  --dtype bfloat16 \
-  --mm-encoder-tp-mode data \
-  --mm-processor-cache-type shm \
-  --reasoning-parser qwen3 \
-  --enable-prefix-caching \
-  --gpu-memory-utilization 0.9 \
-  --max-model-len 8192 \
-  --tensor-parallel-size 4 \
-  --port 8000
-```
 
 ### 基线小模型（未微调 Qwen3-VL-2B，端口 8002）
 
@@ -709,9 +693,9 @@ python 04_train.py
 
 ```bash
 python 07_infer_lora.py \
-  --adapter outputs/qwen3vl-sft-lora \
-  --image /path/to/example.png \
-  --question "图中右侧道路附近是否有建筑？"
+    --adapter outputs/qwen3vl-sft-lora \
+    --image /home/charles/mycode/sft+rl/dataset/LEVIR-CD+/train/B/train_369.png \
+    --question "图像右上角建筑物的屋顶呈现什么颜色？"
 ```
 
 常用参数：
