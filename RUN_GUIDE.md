@@ -15,8 +15,9 @@
 8. [⑤ 人工审核 + 多模型对比 `02_review.py`](#-人工审核--多模型对比-02_reviewpy)
 9. [⑥ SFT 训练 `04_train.py`](#-sft-训练-04_trainpy)
 10. [训练后：推理 / 合并 `07` / `06`](#训练后推理--合并-07--06)
-11. [常见问题](#常见问题)
-12. [高级用法](#高级用法)
+11. [GRPO 数据准备 `scratch/filter_geochat_easy_grpo.py`](#grpo-数据准备-scratchfilter_geochat_easy_grpopy)
+12. [常见问题](#常见问题)
+13. [高级用法](#高级用法)
 
 ---
 
@@ -453,6 +454,58 @@ python 06_merge_lora.py \
 
 `07_infer_lora.py` 常用参数：`--max-new-tokens 256`、`--temperature 0.0`（>0 才采样）、`--min-p 0.1`、`--load-in-4bit`（仅 4bit 流程开）。
 `06_merge_lora.py`：`--out` 默认 `<adapter>_merged`，`--load-in-4bit` 仅 4bit 流程开。
+
+---
+
+## GRPO 数据准备 `scratch/filter_geochat_easy_grpo.py`
+
+SFT 冷启动后接 GRPO。为了让 GRPO 用**可验证奖励（exact-match）**而不是噪声很大的过程奖励，本脚本从 `GeoChat_Instruct.json` 里**只挑答案能被规则自动判对错的样本**，做成闭集/二分类式中文 VQA。设计动机见 README「GRPO 数据准备」一节，这里只讲怎么跑。
+
+### 运行
+
+```bash
+# 默认：输入 scratch/GeoChat_Instruct.json，输出 scratch/data/
+python scratch/filter_geochat_easy_grpo.py
+
+# 显式指定路径 + 调采样规模
+python scratch/filter_geochat_easy_grpo.py \
+  --input scratch/GeoChat_Instruct.json \
+  --output-dir scratch/data \
+  --scene-per-folder 30 \
+  --yesno-per-subtype 500 \
+  --sample-rural-urban 500 \
+  --sample-flood-binary 500 \
+  --seed 3407
+```
+
+纯 CPU、无需 GPU / vLLM；几秒内跑完，结束后会打印各类型数量与标签分布报告。
+
+### 参数
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `--input` | `scratch/GeoChat_Instruct.json` | GeoChat 原始 instruction 文件 |
+| `--output-dir` | `scratch/data` | 所有 jsonl 产物的输出目录 |
+| `--scene-per-folder` | `30` | 场景题每个文件夹取多少张 |
+| `--yesno-per-subtype` | `500` | yes/no 题每个子类型取多少（按 yes/no 均衡） |
+| `--sample-rural-urban` | `500` | 城乡题采样数（按标签均衡） |
+| `--sample-flood-binary` | `500` | 洪涝题采样数（按标签均衡） |
+| `--seed` | `3407` | 采样随机种子（影响均衡采样与场景候选抽取） |
+
+### 产物（`scratch/data/`）
+
+| 文件 | 行数 | 用途 |
+|------|------|------|
+| `scene_classification.jsonl` 等 4 份全量池 | 28362 / 40338 / 572 / 1303 | 各类型全量，供自定义采样 |
+| `scene_classification_first30_per_folder.jsonl` | 1350 | 场景：每文件夹 30 张 |
+| `binary_yesno_500_per_subtype.jsonl` | 1500 | 二分类：每子类型 500（排除 `other_yesno`） |
+| `rural_urban_500.jsonl` / `flood_binary_500.jsonl` | 500 / 500 | 城乡 / 洪涝均衡采样 |
+| `train_merged.jsonl` | 3850 | **GRPO 训练集**：上面 4 份采样合并 |
+
+每行只有 `{image, question, reference}` 三字段，question / reference 已中文化对齐 SFT 口吻；`reference` 是闭集或二分类，可直接做规则奖励。
+
+> 当前 `train_merged.jsonl` 是手动把 4 份采样拼起来的（脚本只产出分文件）。要换配比就改上表四个采样参数后重跑，再重新合并。
+> 想用过程奖励模型代替规则奖励，可参考 `scratch/grpo_prm.py`（对接 vLLM 的 `ClientPRM`），但默认推荐可验证奖励。
 
 ---
 
