@@ -8,3 +8,4 @@ __pycache__/
 /unsloth_compiled_cache/
 /outputs/model/
 /outputs/qwen3vl-sft-lora
+/scratch/GeoChat_Instruct.json
